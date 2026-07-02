@@ -45,66 +45,6 @@ function getExcelStyleSettings() {
     };
 }
 
-function normalizeHeader(value) {
-    return String(value || "")
-        .toLowerCase()
-        .replace(/ё/g, 'е')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-function findColumnIndex(data, candidates, fallbackIndex) {
-    const header = data && data[0] ? data[0] : [];
-    const normalizedCandidates = candidates.map(normalizeHeader);
-
-    for (let i = 0; i < header.length; i++) {
-        const columnName = normalizeHeader(header[i]);
-        if (normalizedCandidates.some((candidate) => columnName.includes(candidate))) return i;
-    }
-
-    return fallbackIndex;
-}
-
-const LEAD_COLUMNS = [
-    'ID Кампании',
-    'ID Группы',
-    'ID Объявления',
-    'Время лида',
-    'Имя',
-    'Телефон',
-    'Комментарий',
-];
-
-function normalizeLeadTable(table) {
-    if (!table || table.length <= 1) return [];
-
-    const columnMap = [
-        findColumnIndex(table, ['id кампании', 'campaign id'], 0),
-        findColumnIndex(table, ['id группы', 'group id'], 1),
-        findColumnIndex(table, ['id объявления', 'id обьявления', 'ad id'], 2),
-        findColumnIndex(table, ['время лида', 'дата', 'created'], 3),
-        findColumnIndex(table, ['имя', 'name'], 4),
-        findColumnIndex(table, ['телефон', 'phone'], 5),
-        findColumnIndex(table, ['комментарий', 'comment'], 6),
-    ];
-
-    return table.slice(1)
-        .filter((row) => row && row.some((cell) => cell !== ''))
-        .map((row) => columnMap.map((columnIndex) => row[columnIndex] ?? ''));
-}
-
-export function mergeLeadTables(tables) {
-    if (!tables.length) return [];
-
-    const rows = [];
-
-    tables.forEach((table) => {
-        rows.push(...normalizeLeadTable(table));
-    });
-
-    return rows.length > 0 ? [LEAD_COLUMNS, ...rows] : [];
-}
-
 function validateForm(config, adsFile, groupsFile) {
     if (!config.title) {
         showNotification('📌 Укажите название проекта', 'error');
@@ -141,7 +81,7 @@ async function handleSubmit(event) {
         showNotification('📚 Чтение файлов...', 'info');
         const adsData = await readExcelFile(adsFile);
         const groupsData = await readExcelFile(groupsFile);
-        const tempData = mergeLeadTables(await Promise.all(tempFiles.map(readExcelFile)));
+        const tempData = await Promise.all(tempFiles.map(readExcelFile));
 
         showNotification('🧮 Обработка данных...', 'info');
         const reportData = processVKReport(adsData, groupsData, tempData, getTargetPhones(), config);

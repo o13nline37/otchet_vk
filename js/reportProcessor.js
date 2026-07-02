@@ -84,6 +84,16 @@ function buildGroupDictionary(groupsData) {
     return groupDict;
 }
 
+function getLeadTables(tempData) {
+    if (!tempData || tempData.length === 0) return [];
+
+    const firstItem = tempData[0];
+    const looksLikeMultipleTables = Array.isArray(firstItem)
+        && Array.isArray(firstItem[0]);
+
+    return looksLikeMultipleTables ? tempData : [tempData];
+}
+
 function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
     clearPhoneCache();
 
@@ -97,20 +107,23 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
 
     const shouldFilterByTargetPhones = targetPhones.size > 0;
     const adsAdIdIndex = findColumnIndex(adsData, ['id объявления', 'id обьявления', 'ad id'], 6);
-    const leadsAdIdIndex = findColumnIndex(tempData, ['id объявления', 'id обьявления', 'ad id'], 2);
-    const leadsPhoneIndex = findColumnIndex(tempData, ['телефон', 'phone'], 5);
 
     const callData = [];
-    if (tempData && tempData.length > 1) {
-        for (let i = 1; i < tempData.length; i++) {
-            const row = tempData[i];
+    getLeadTables(tempData).forEach((leadTable) => {
+        if (!leadTable || leadTable.length <= 1) return;
+
+        const leadsAdIdIndex = findColumnIndex(leadTable, ['id объявления', 'id обьявления', 'ad id'], 2);
+        const leadsPhoneIndex = findColumnIndex(leadTable, ['телефон', 'phone'], 5);
+
+        for (let i = 1; i < leadTable.length; i++) {
+            const row = leadTable[i];
             if (!row) continue;
 
             const adId = normalizeId(row[leadsAdIdIndex]);
             const phone = normalizePhoneCached(row[leadsPhoneIndex]);
             callData.push([adId, phone]);
         }
-    }
+    });
 
     const coByCallAdId = new Map();
     for (let i = 0; i < callData.length; i++) {
