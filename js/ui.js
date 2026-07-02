@@ -171,6 +171,14 @@ export function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+export function getSelectedFiles(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return [];
+
+    const selectedFiles = Array.from(input._selectedFiles || []);
+    return selectedFiles.length > 0 ? selectedFiles : Array.from(input.files || []);
+}
+
 export function bindUiEvents() {
     document.querySelectorAll('[data-hint-target]').forEach((button) => {
         button.addEventListener('click', () => toggleHint(button));

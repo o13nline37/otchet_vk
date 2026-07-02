@@ -1,7 +1,7 @@
 import { generateExcelReport } from './excelGenerator.js';
 import { downloadFile, readExcelFile } from './fileReader.js';
 import { processVKReport } from './reportProcessor.js';
-import { bindUiEvents, showNotification } from './ui.js';
+import { bindUiEvents, getSelectedFiles, showNotification } from './ui.js';
 
 function getTargetPhones() {
     const phonesText = document.getElementById('vk-phones').value;
@@ -68,9 +68,9 @@ async function handleSubmit(event) {
 
     const submitButton = event.target.querySelector('button[type="submit"]');
     const config = getReportConfig();
-    const adsFile = document.getElementById('vk-ads').files[0];
-    const groupsFile = document.getElementById('vk-groups').files[0];
-    const tempFiles = Array.from(document.getElementById('vk-temp').files);
+    const adsFile = getSelectedFiles('vk-ads')[0];
+    const groupsFile = getSelectedFiles('vk-groups')[0];
+    const tempFiles = getSelectedFiles('vk-temp');
 
     try {
         if (!validateForm(config, adsFile, groupsFile)) return;
@@ -93,7 +93,10 @@ async function handleSubmit(event) {
             : `${config.title}.xlsx`;
 
         downloadFile(excelData, filename);
-        showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO, 'success');
+        const unmatchedText = reportData.unmatchedLeadCount
+            ? `, без объявления в выгрузке: ${reportData.unmatchedLeadCount}`
+            : '';
+        showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO + unmatchedText, 'success');
     } catch (error) {
         console.error('Ошибка:', error);
         showNotification(error.message, 'error');

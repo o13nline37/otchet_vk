@@ -1,6 +1,8 @@
 import { findVideoCreative, sortCreatives, sortTexts } from './formatters.js';
 import { clearPhoneCache, normalizePhoneCached } from './phoneUtils.js';
 
+const UNKNOWN_AD_LABEL = 'Без данных объявления';
+
 function normalizeHeader(value) {
     return String(value || "")
         .toLowerCase()
@@ -136,7 +138,7 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
     }
 
     const groupDict = buildGroupDictionary(groupsData);
-    const mainData = [];
+    const adsById = new Map();
 
     if (adsData) {
         const adNameIndex = findColumnIndex(adsData, ['название', 'name'], 0);
@@ -152,7 +154,7 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
             const targeting = findTargetingName(groupDict, groupId);
             const creative = findCreativeName(adName);
             const text = findTextName(adName);
-            mainData.push([adId, adName, targeting, creative, text]);
+            if (adId) adsById.set(adId, { targeting, creative, text });
         }
     }
 
@@ -160,23 +162,30 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
     const coByTargeting = new Map();
     const coByAdText = new Map();
     let totalCO = 0;
+    let unmatchedLeadCount = 0;
 
-    for (let i = 0; i < mainData.length; i++) {
-        const adId = normalizeId(mainData[i][0]);
-        if (!adId || !coByCallAdId.has(adId)) continue;
-
-        const count = coByCallAdId.get(adId);
-        const targeting = String(mainData[i][2] || "").trim();
-        const creative = String(mainData[i][3] || "").trim();
-        const adText = String(mainData[i][4] || "").trim();
-
+    for (const [adId, count] of coByCallAdId.entries()) {
         totalCO += count;
+
+        const adInfo = adsById.get(adId);
+        if (!adInfo) {
+            unmatchedLeadCount += count;
+            coByCreative.set(UNKNOWN_AD_LABEL, (coByCreative.get(UNKNOWN_AD_LABEL) || 0) + count);
+            coByTargeting.set(UNKNOWN_AD_LABEL, (coByTargeting.get(UNKNOWN_AD_LABEL) || 0) + count);
+            coByAdText.set(UNKNOWN_AD_LABEL, (coByAdText.get(UNKNOWN_AD_LABEL) || 0) + count);
+            continue;
+        }
+
+        const targeting = String(adInfo.targeting || "").trim();
+        const creative = String(adInfo.creative || "").trim();
+        const adText = String(adInfo.text || "").trim();
+
         if (creative) coByCreative.set(creative, (coByCreative.get(creative) || 0) + count);
         if (targeting) coByTargeting.set(targeting, (coByTargeting.get(targeting) || 0) + count);
         if (adText) coByAdText.set(adText, (coByAdText.get(adText) || 0) + count);
     }
 
-    return { coByCreative, coByTargeting, coByAdText, totalCO };
+    return { coByCreative, coByTargeting, coByAdText, totalCO, unmatchedLeadCount };
 }
 
 export function processVKReport(adsData, groupsData, tempData, targetPhonesFromInput, config) {
@@ -213,7 +222,7 @@ export function processVKReport(adsData, groupsData, tempData, targetPhonesFromI
         }
     }
 
-    const { coByCreative, coByTargeting, coByAdText, totalCO } = buildCOByAdId(
+    const { coByCreative, coByTargeting, coByAdText, totalCO, unmatchedLeadCount } = buildCOByAdId(
         adsData,
         groupsData,
         tempData,
@@ -270,6 +279,7 @@ export function processVKReport(adsData, groupsData, tempData, targetPhonesFromI
         totalClicks,
         totalResults,
         totalCO,
+        unmatchedLeadCount,
         creatives: sortCreatives(Array.from(creatives.entries()).map(([name, data]) => ({ name, ...data }))),
         targetings: Array.from(targetings.entries()).map(([name, data]) => ({ name, ...data })),
         adTexts: sortTexts(Array.from(adTexts.entries()).map(([name, data]) => ({ name, ...data }))),
