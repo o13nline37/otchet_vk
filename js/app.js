@@ -45,6 +45,20 @@ function getExcelStyleSettings() {
     };
 }
 
+function mergeLeadTables(tables) {
+    if (!tables.length) return [];
+
+    const [firstTable, ...restTables] = tables;
+    const merged = firstTable ? firstTable.slice() : [];
+
+    restTables.forEach((table) => {
+        if (!table || table.length === 0) return;
+        merged.push(...table.slice(1));
+    });
+
+    return merged;
+}
+
 function validateForm(config, adsFile, groupsFile) {
     if (!config.title) {
         showNotification('📌 Укажите название проекта', 'error');
@@ -70,7 +84,7 @@ async function handleSubmit(event) {
     const config = getReportConfig();
     const adsFile = document.getElementById('vk-ads').files[0];
     const groupsFile = document.getElementById('vk-groups').files[0];
-    const tempFile = document.getElementById('vk-temp').files[0];
+    const tempFiles = Array.from(document.getElementById('vk-temp').files);
 
     try {
         if (!validateForm(config, adsFile, groupsFile)) return;
@@ -81,7 +95,7 @@ async function handleSubmit(event) {
         showNotification('📚 Чтение файлов...', 'info');
         const adsData = await readExcelFile(adsFile);
         const groupsData = await readExcelFile(groupsFile);
-        const tempData = tempFile ? await readExcelFile(tempFile) : [];
+        const tempData = mergeLeadTables(await Promise.all(tempFiles.map(readExcelFile)));
 
         showNotification('🧮 Обработка данных...', 'info');
         const reportData = processVKReport(adsData, groupsData, tempData, getTargetPhones(), config);

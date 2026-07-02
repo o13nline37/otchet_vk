@@ -1,6 +1,7 @@
 import { setNumberFormat } from './formatters.js';
 
 const FILE_NOT_SELECTED_TEXT = 'Файл не выбран';
+const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 
 function toggleHint(button) {
     const element = document.getElementById(button.dataset.hintTarget);
@@ -16,14 +17,72 @@ function setFormat(format) {
     document.getElementById('fmt-decimal').classList.toggle('active', format === 'decimal');
 }
 
+function renderFileNames(label, files) {
+    label.replaceChildren();
+
+    if (files.length === 0) {
+        label.textContent = FILE_NOT_SELECTED_TEXT;
+        return;
+    }
+
+    files.forEach((file) => {
+        const item = document.createElement('span');
+        item.className = 'file-name-item';
+        item.textContent = `✅ ${file.name}`;
+        label.appendChild(item);
+    });
+}
+
 function resetUploadState(inputId, labelId) {
     const input = document.getElementById(inputId);
     const label = document.getElementById(labelId);
     const uploadItem = input.closest('.upload-item');
 
+    input._selectedFiles = [];
     input.value = '';
-    label.textContent = FILE_NOT_SELECTED_TEXT;
+    renderFileNames(label, []);
     uploadItem?.classList.remove('has-file');
+}
+
+function isAcceptedFile(file) {
+    const name = file.name.toLowerCase();
+    return ACCEPTED_EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+function getDroppedFiles(dataTransfer, allowMultiple) {
+    const files = Array.from(dataTransfer.files || []).filter(isAcceptedFile);
+    return allowMultiple ? files : files.slice(0, 1);
+}
+
+function getFileKey(file) {
+    return `${file.name}::${file.size}::${file.lastModified}`;
+}
+
+function mergeFiles(currentFiles, newFiles, allowMultiple) {
+    if (!allowMultiple) return newFiles.slice(0, 1);
+
+    const knownFiles = new Set(currentFiles.map(getFileKey));
+    const mergedFiles = currentFiles.slice();
+
+    newFiles.forEach((file) => {
+        const key = getFileKey(file);
+        if (!knownFiles.has(key)) {
+            knownFiles.add(key);
+            mergedFiles.push(file);
+        }
+    });
+
+    return mergedFiles;
+}
+
+function syncInputFiles(input, files, shouldDispatchChange = false) {
+    const transfer = new DataTransfer();
+    files.forEach((file) => transfer.items.add(file));
+    input.files = transfer.files;
+
+    if (shouldDispatchChange) {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 }
 
 function clearForm() {
@@ -50,15 +109,54 @@ function clearForm() {
     showNotification('🧹 Данные очищены', 'info');
 }
 
-function bindFileName(inputId, labelId) {
+function bindFilePicker(inputId, labelId) {
     const input = document.getElementById(inputId);
     const label = document.getElementById(labelId);
+    const wrapper = input.closest('.file-input-wrapper');
     const uploadItem = input.closest('.upload-item');
+    input._selectedFiles = [];
+
+    wrapper.addEventListener('click', (event) => {
+        if (event.target === input) return;
+        input.click();
+    });
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+        wrapper.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            wrapper.classList.add('is-dragover');
+        });
+    });
+
+    ['dragleave', 'dragend'].forEach((eventName) => {
+        wrapper.addEventListener(eventName, () => {
+            wrapper.classList.remove('is-dragover');
+        });
+    });
+
+    wrapper.addEventListener('drop', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        wrapper.classList.remove('is-dragover');
+
+        const files = getDroppedFiles(event.dataTransfer, input.multiple);
+        if (files.length === 0) {
+            showNotification('📎 Поддерживаются только .xlsx, .xls и .csv', 'error');
+            return;
+        }
+
+        input._selectedFiles = mergeFiles(input._selectedFiles || [], files, input.multiple);
+        syncInputFiles(input, input._selectedFiles, true);
+    });
 
     input.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        label.textContent = file ? `✅ ${file.name}` : FILE_NOT_SELECTED_TEXT;
-        uploadItem?.classList.toggle('has-file', Boolean(file));
+        const files = mergeFiles(input._selectedFiles || [], Array.from(event.target.files), input.multiple);
+
+        input._selectedFiles = files;
+        syncInputFiles(input, files);
+        renderFileNames(label, input._selectedFiles);
+        uploadItem?.classList.toggle('has-file', files.length > 0);
     });
 }
 
@@ -84,8 +182,8 @@ export function bindUiEvents() {
 
     document.getElementById('fmt-clear').addEventListener('click', clearForm);
 
-    bindFileName('vk-ads', 'ads-name');
-    bindFileName('vk-groups', 'groups-name');
-    bindFileName('vk-temp', 'temp-name');
+    bindFilePicker('vk-ads', 'ads-name');
+    bindFilePicker('vk-groups', 'groups-name');
+    bindFilePicker('vk-temp', 'temp-name');
     setFormat('integer');
 }
