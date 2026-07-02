@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK Report Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 40px 20px; color: #333; line-height: 1.6; }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { font-size: 28px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .subtitle { font-size: 14px; color: #666; margin-bottom: 32px; }
+        .card { background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; color: #374151; }
+        .form-group input[type="text"], .form-group input[type="number"], .form-group input[type="date"], .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; transition: border-color 0.2s; font-family: inherit; }
+        .form-group textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .form-row-date { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
+        .date-separator { padding-bottom: 10px; color: #6b7280; font-size: 14px; }
+        .multipliers-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 16px; align-items: end; }
+        .multipliers-row .field-label { font-size: 12px; font-weight: 400; color: #374151; margin-bottom: 6px; display: block; }
+        .btn { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+        .format-buttons { display: flex; gap: 8px; margin-bottom: 20px; }
+        .format-btn { flex: 1; padding: 10px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .format-btn:hover { background: #e5e7eb; }
+        .format-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .format-btn.danger { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+        .format-btn.danger:hover { background: #fee2e2; border-color: #ef4444; }
+        .file-input-wrapper { position: relative; display: flex; align-items: center; gap: 10px; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px 12px; background: white; transition: border-color 0.2s; }
+        .file-input-wrapper:hover { border-color: #9ca3af; }
+        .file-input-wrapper input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+        .file-input-label { display: inline-block; padding: 6px 12px; background: #f3f4f6; color: #374151; border-radius: 4px; font-size: 13px; cursor: pointer; transition: background 0.2s; white-space: nowrap; border: 1px solid #e5e7eb; }
+        .file-input-label:hover { background: #e5e7eb; }
+        .file-input-name { font-size: 13px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; color: white; font-size: 14px; font-weight: 500; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .notification.success { background: #10b981; }
+        .notification.error { background: #ef4444; }
+        .notification.info { background: #3b82f6; }
+
+        /* Стили для подсказки */
+        .label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .label-row label { margin-bottom: 0; flex: 1; }
+        .help-btn {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #e5e7eb; color: #6b7280; border: none;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .help-btn:hover { background: #2563eb; color: white; }
+        .help-hint {
+            display: none;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.5;
+        }
+        .help-hint.visible { display: block; }
+        .help-hint strong { color: #1e293b; }
+        .help-hint .col-list {
+            display: flex; flex-wrap: wrap; gap: 4px 8px;
+            margin-top: 4px;
+        }
+        .help-hint .col-item {
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VK Report Generator</h1>
+        <p class="subtitle">Обработка и генерация отчетов</p>
+        <div class="card">
+            <form id="vk-form">
+                <div class="form-group">
+                    <label for="vk-title">Название проекта</label>
+                    <input type="text" id="vk-title">
+                </div>
+                <div class="form-group">
+                    <label>Период (необязательно)</label>
+                    <div class="form-row-date">
+                        <input type="date" id="vk-date-from">
+                        <span class="date-separator">—</span>
+                        <input type="date" id="vk-date-to">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="multipliers-row">
+                        <div>
+                            <label for="vk-vat" class="field-label">НДС</label>
+                            <input type="number" id="vk-vat" step="0.01" min="0" max="5" value="1.22">
+                        </div>
+                        <div>
+                            <label for="vk-ak1" class="field-label">АК 1</label>
+                            <input type="number" id="vk-ak1" step="0.01" min="0" max="5" value="1">
+                        </div>
+                        <div>
+                            <label for="vk-ak2" class="field-label">АК 2</label>
+                            <input type="number" id="vk-ak2" step="0.01" min="0" max="5" value="1">
+                        </div>
+                        <div>
+                            <label for="vk-ak3" class="field-label">АК 3</label>
+                            <input type="number" id="vk-ak3" step="0.01" min="0" max="5" value="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Целевые номера телефонов</label>
+                    <textarea id="vk-phones" placeholder="1 номер = 1 строка&#10;+79017663835&#10;+79261823352"></textarea>
+                </div>
+
+                <!-- Объявления -->
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>Выгрузка <b>Объявления</b></label>
+                        <button type="button" class="help-btn" onclick="toggleHint('hint-ads')">?</button>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <span class="file-input-label">Выбрать файл</span>
+                        <span class="file-input-name" id="ads-name">Файл не выбран</span>
+                        <input type="file" id="vk-ads" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="help-hint" id="hint-ads">
+                        <strong>Порядок столбцов:</strong>
+                        <div class="col-list">
+                            <span class="col-item">Название</span>
+                            <span class="col-item">Расход</span>
+                            <span class="col-item">Показы</span>
+                            <span class="col-item">Клики</span>
+                            <span class="col-item">CTR</span>
+                            <span class="col-item">Результат</span>
+                            <span class="col-item">ID объявления</span>
+                            <span class="col-item">ID группы</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Группы -->
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>Выгрузка <b>Группы</b></label>
+                        <button type="button" class="help-btn" onclick="toggleHint('hint-groups')">?</button>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <span class="file-input-label">Выбрать файл</span>
+                        <span class="file-input-name" id="groups-name">Файл не выбран</span>
+                        <input type="file" id="vk-groups" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="help-hint" id="hint-groups">
+                        <strong>Порядок столбцов:</strong>
+                        <div class="col-list">
+                            <span class="col-item">Название группы</span>
+                            <span class="col-item">Расход</span>
+                            <span class="col-item">Показы</span>
+                            <span class="col-item">Клики</span>
+                            <span class="col-item">CTR</span>
+                            <span class="col-item">Результат</span>
+                            <span class="col-item">ID группы</span>
+                            <span class="col-item">ID кампании</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Лиды -->
+                <div class="form-group">
+                    <div class="label-row">
+                        <label>Выгрузка <b>Лиды</b></label>
+                        <button type="button" class="help-btn" onclick="toggleHint('hint-leads')">?</button>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <span class="file-input-label">Выбрать файл</span>
+                        <span class="file-input-name" id="temp-name">Файл не выбран</span>
+                        <input type="file" id="vk-temp" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="help-hint" id="hint-leads">
+                        <strong>Порядок столбцов:</strong>
+                        <div class="col-list">
+                            <span class="col-item">ID Кампании</span>
+                            <span class="col-item">ID Группы</span>
+                            <span class="col-item">ID Объявления</span>
+                            <span class="col-item">Время лида</span>
+                            <span class="col-item">Имя</span>
+                            <span class="col-item">Телефон</span>
+                            <span class="col-item">Комментарий</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="format-buttons">
+                    <button type="button" class="format-btn active" id="fmt-integer" onclick="setFormat('integer')">⬅️ Целое число</button>
+                    <button type="button" class="format-btn" id="fmt-decimal" onclick="setFormat('decimal')">➡️ 2 знака</button>
+                    <button type="button" class="format-btn danger" id="fmt-clear" onclick="clearForm()">🗑 Очистка</button>
+                </div>
+                <button type="submit" class="btn">Создать отчет</button>
+            </form>
+        </div>
+    </div>
+    <div id="notification" class="notification" style="display: none;"></div>
+
+    <script>
+        function toggleHint(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('visible');
+        }
+
+        let numberFormat = 'integer';
+        function setFormat(f) { numberFormat = f; document.getElementById('fmt-integer').classList.toggle('active', f === 'integer'); document.getElementById('fmt-decimal').classList.toggle('active', f === 'decimal'); }
+        function getRubFormat() { return numberFormat === 'integer' ? '#,##0 "руб."' : '#,##0.00 "руб."'; }
+        function clearForm() {
+            document.getElementById('vk-title').value = '';
+            document.getElementById('vk-date-from').value = '';
+            document.getElementById('vk-date-to').value = '';
+            document.getElementById('vk-vat').value = '1.22';
+            document.getElementById('vk-ak1').value = '1';
+            document.getElementById('vk-ak2').value = '1';
+            document.getElementById('vk-ak3').value = '1';
+            document.getElementById('vk-phones').value = '';
+            document.getElementById('vk-ads').value = '';
+            document.getElementById('vk-groups').value = '';
+            document.getElementById('vk-temp').value = '';
+            document.getElementById('ads-name').textContent = 'Файл не выбран';
+            document.getElementById('groups-name').textContent = 'Файл не выбран';
+            document.getElementById('temp-name').textContent = 'Файл не выбран';
+            document.querySelectorAll('.help-hint').forEach(h => h.classList.remove('visible'));
+            setFormat('integer');
+            showNotification('🗑 Данные очищены', 'info');
+        }
+        document.getElementById('vk-ads').addEventListener('change', e => { document.getElementById('ads-name').textContent = e.target.files[0] ? e.target.files[0].name : 'Файл не выбран'; });
+        document.getElementById('vk-groups').addEventListener('change', e => { document.getElementById('groups-name').textContent = e.target.files[0] ? e.target.files[0].name : 'Файл не выбран'; });
+        document.getElementById('vk-temp').addEventListener('change', e => { document.getElementById('temp-name').textContent = e.target.files[0] ? e.target.files[0].name : 'Файл не выбран'; });
+
+        const phoneCache = new Map();
+        function clearPhoneCache() { phoneCache.clear(); }
+        function normalizePhone(raw) {
+            if (raw === null || raw === undefined || raw === "") return "";
+            let s = String(raw).replace(/\D/g, "");
+            if (s.length === 11 && s.startsWith("8")) s = "7" + s.slice(1);
+            if (s.length === 10) s = "7" + s;
+            if (s.length === 11 && s.startsWith("7")) return s;
+            if (s.length > 11) { const last11 = s.slice(-11); if (last11.startsWith("7")) return last11; }
+            return "";
+        }
+        function normalizePhoneCached(raw) {
+            if (phoneCache.has(raw)) return phoneCache.get(raw);
+            const result = normalizePhone(raw);
+            phoneCache.set(raw, result);
+            return result;
+        }
+        function findVideoCreative(s) {
+            const patterns = [/видео[\s_]?(\d+)/i, /video[\s_]?(\d+)/i, /vid[\s_]?(\d+)/i, /[vв](\d+)_/i];
+            for (const p of patterns) {
+                const m = s.match(p);
+                if (m && m[1] >= 1 && m[1] <= 10) return "Видеокреатив " + m[1];
+            }
+            return null;
+        }
+
+        function extractNumber(name) {
+            const m = name.match(/(\d+(?:\.\d+)?)/);
+            return m ? parseFloat(m[1]) : 0;
+        }
+        function sortCreatives(arr) {
+            return arr.slice().sort((a, b) => {
+                const aIsVideo = a.name.startsWith('Видеокреатив');
+                const bIsVideo = b.name.startsWith('Видеокреатив');
+                if (aIsVideo !== bIsVideo) return aIsVideo ? 1 : -1;
+                return extractNumber(a.name) - extractNumber(b.name);
+            });
+        }
+        function sortTexts(arr) {
+            return arr.slice().sort((a, b) => extractNumber(a.name) - extractNumber(b.name));
+        }
+
+        function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
+            clearPhoneCache();
+            const targetPhones = new Set();
+            if (targetPhonesFromInput && targetPhonesFromInput.length > 0) {
+                for (let i = 0; i < targetPhonesFromInput.length; i++) {
+                    const p = normalizePhoneCached(targetPhonesFromInput[i]);
+                    if (p) targetPhones.add(p);
+                }
+            }
+            const callData = [];
+            if (tempData && tempData.length > 1) {
+                for (let i = 1; i < tempData.length; i++) {
+                    const row = tempData[i];
+                    if (!row || row.length < 6) continue;
+                    const adId = String(row[2] || "").replace(/\s+/g, '').trim();
+                    const phone = normalizePhoneCached(row[5]);
+                    callData.push([adId, phone]);
+                }
+            }
+            const coByCallAdId = new Map();
+            for (let i = 0; i < callData.length; i++) {
+                const adId = callData[i][0];
+                const phone = callData[i][1];
+                if (adId && phone && targetPhones.has(phone)) {
+                    coByCallAdId.set(adId, (coByCallAdId.get(adId) || 0) + 1);
+                }
+            }
+            const groupDict = {};
+            if (groupsData) {
+                for (let i = 1; i < groupsData.length; i++) {
+                    const row = groupsData[i];
+                    if (row.length >= 7) {
+                        const groupName = String(row[0] || "").trim();
+                        const groupId = String(row[6] || "").trim();
+                        if (groupId && groupName) groupDict[groupId] = groupName;
+                    }
+                }
+            }
+            const mainData = [];
+            if (adsData) {
+                for (let i = 1; i < adsData.length; i++) {
+                    const row = adsData[i];
+                    if (row.length < 8) continue;
+                    const adId = String(row[6] || "").trim();
+                    const adName = String(row[0] || "").trim();
+                    const groupIdFromAd = String(row[7] || "").trim();
+                    let targeting = "";
+                    if (groupIdFromAd && groupDict[groupIdFromAd]) {
+                        targeting = groupDict[groupIdFromAd];
+                    } else if (groupIdFromAd) {
+                        const numId = parseFloat(groupIdFromAd);
+                        if (!isNaN(numId)) {
+                            for (const [dictId, dictName] of Object.entries(groupDict)) {
+                                if (parseFloat(dictId) === numId) { targeting = dictName; break; }
+                            }
+                        }
+                    }
+                    let creative = "";
+                    let foundCreative = findVideoCreative(adName);
+                    if (!foundCreative) {
+                        const m = adName.match(/[СCКK](\d{1,2}(?:\.\d+)?)/i);
+                        if (m) {
+                            const numStr = m[1];
+                            const baseNum = parseInt(numStr.split('.')[0], 10);
+                            if (baseNum >= 1 && baseNum <= 99) foundCreative = "Креатив " + numStr;
+                        }
+                    }
+                    creative = foundCreative || "";
+                    let text = "";
+                    const tm = adName.match(/[_\sТT](\d{1,2}(?:\.\d+)?)/i);
+                    if (tm) {
+                        const numStr = tm[1];
+                        const baseNum = parseInt(numStr.split('.')[0], 10);
+                        if (baseNum >= 1 && baseNum <= 99) text = "Текст " + numStr;
+                    }
+                    mainData.push([adId, adName, targeting, creative, text]);
+                }
+            }
+            const coByCreative = new Map();
+            const coByTargeting = new Map();
+            const coByAdText = new Map();
+            let totalCO = 0;
+            for (let i = 0; i < mainData.length; i++) {
+                const adId = String(mainData[i][0] || "").trim();
+                if (!adId || !coByCallAdId.has(adId)) continue;
+                const count = coByCallAdId.get(adId);
+                totalCO += count;
+                const targeting = String(mainData[i][2] || "").trim();
+                const creative = String(mainData[i][3] || "").trim();
+                const adText = String(mainData[i][4] || "").trim();
+                if (creative) coByCreative.set(creative, (coByCreative.get(creative) || 0) + count);
+                if (targeting) coByTargeting.set(targeting, (coByTargeting.get(targeting) || 0) + count);
+                if (adText) coByAdText.set(adText, (coByAdText.get(adText) || 0) + count);
+            }
+            return { coByCreative, coByTargeting, coByAdText, totalCO };
+        }
+
+        function processVKReport(adsData, groupsData, tempData, targetPhonesFromInput, config) {
+            const { title, period, vat, ak } = config;
+            const multiplier = vat * ak;
+            const groupDict = {};
+            if (groupsData) {
+                for (let i = 1; i < groupsData.length; i++) {
+                    const row = groupsData[i];
+                    if (row.length >= 7) {
+                        const gn = String(row[0] || "").trim();
+                        const gi = String(row[6] || "").trim();
+                        if (gi && gn) groupDict[gi] = gn;
+                    }
+                }
+            }
+            const processedAds = [];
+            if (adsData) {
+                for (let i = 1; i < adsData.length; i++) {
+                    const row = adsData[i];
+                    if (row.length < 8) continue;
+                    const adName = String(row[0] || "");
+                    const spent = (Number(row[1]) || 0) * multiplier;
+                    if (spent <= 0) continue;
+                    const impressions = Number(row[2]) || 0;
+                    const clicks = Number(row[3]) || 0;
+                    const results = Number(row[5]) || 0;
+                    const groupId = String(row[7] || "").trim();
+                    let targeting = "";
+                    if (groupId && groupDict[groupId]) targeting = groupDict[groupId];
+                    else if (groupId) {
+                        const nid = parseFloat(groupId);
+                        if (!isNaN(nid)) for (const [di, dn] of Object.entries(groupDict)) {
+                            if (parseFloat(di) === nid) { targeting = dn; break; }
+                        }
+                    }
+                    let creative = findVideoCreative(adName) || "";
+                    if (!creative) {
+                        const m = adName.match(/[СCКK](\d{1,2}(?:\.\d+)?)/i);
+                        if (m && parseInt(m[1].split('.')[0], 10) >= 1 && parseInt(m[1].split('.')[0], 10) <= 99) creative = "Креатив " + m[1];
+                    }
+                    let text = "";
+                    const tm = adName.match(/[_\sТT](\d{1,2}(?:\.\d+)?)/i);
+                    if (tm && parseInt(tm[1].split('.')[0], 10) >= 1 && parseInt(tm[1].split('.')[0], 10) <= 99) text = "Текст " + tm[1];
+                    processedAds.push({ adName, spent, impressions, clicks, results, targeting, creative, text });
+                }
+            }
+            const { coByCreative, coByTargeting, coByAdText, totalCO } = buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput);
+            const creatives = new Map(), targetings = new Map(), adTexts = new Map();
+            processedAds.forEach(ad => {
+                const updateMap = (map, key) => {
+                    if (!key) return;
+                    if (!map.has(key)) map.set(key, { spent: 0, impressions: 0, clicks: 0, results: 0, co: 0 });
+                    const item = map.get(key);
+                    item.spent += ad.spent;
+                    item.impressions += ad.impressions;
+                    item.clicks += ad.clicks;
+                    item.results += ad.results;
+                };
+                updateMap(creatives, ad.creative);
+                updateMap(targetings, ad.targeting);
+                updateMap(adTexts, ad.text);
+            });
+            const applyCO = (map, coMap) => {
+                for (const [name, data] of map.entries()) { data.co = coMap.get(name) || 0; }
+                for (const name of coMap.keys()) {
+                    if (!map.has(name)) { map.set(name, { spent: 0, impressions: 0, clicks: 0, results: 0, co: coMap.get(name) }); }
+                }
+            };
+            applyCO(creatives, coByCreative);
+            applyCO(targetings, coByTargeting);
+            applyCO(adTexts, coByAdText);
+            const totalSpent = processedAds.reduce((s, a) => s + a.spent, 0);
+            const totalImpressions = processedAds.reduce((s, a) => s + a.impressions, 0);
+            const totalClicks = processedAds.reduce((s, a) => s + a.clicks, 0);
+            const totalResults = processedAds.reduce((s, a) => s + a.results, 0);
+            return {
+                title, period, totalSpent, totalImpressions, totalClicks, totalResults, totalCO,
+                creatives: sortCreatives(Array.from(creatives.entries()).map(([name, data]) => ({ name, ...data }))),
+                targetings: Array.from(targetings.entries()).map(([name, data]) => ({ name, ...data })),
+                adTexts: sortTexts(Array.from(adTexts.entries()).map(([name, data]) => ({ name, ...data })))
+            };
+        }
+
+        function setRubValue(cell, value, format) {
+            if (!value || value === 0) { cell.value = '-'; }
+            else { cell.value = value; cell.numFmt = format; }
+        }
+
+        function applyHeaderStyle(row, values, colCount) {
+            for (let i = 0; i < colCount; i++) {
+                const cell = row.getCell(i + 1);
+                cell.value = values[i];
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Montserrat', size: 10 };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF76A5AF' } };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+        }
+
+        async function generateExcelReport(data) {
+            const workbook = new ExcelJS.Workbook();
+            const sheetName = data.period ? `${data.title} | ${data.period}`.substring(0, 31) : data.title.substring(0, 31);
+            const sheet = workbook.addWorksheet(sheetName);
+            sheet.properties.defaultRowHeight = 15;
+            const rubFormat = getRubFormat();
+            sheet.getCell('A1').value = 'Общая статистика';
+            sheet.getCell('A1').font = { bold: true, size: 12, name: 'Montserrat' };
+            sheet.getCell('A1').alignment = { horizontal: 'left' };
+            const header = ['Расход', 'Показы', 'Клики', 'CTR (%)', 'CPC', 'CPM', 'ВАЛ', 'CPL', 'ЦО', 'CPA'];
+            const headerRow = sheet.getRow(2);
+            applyHeaderStyle(headerRow, header, 10);
+            headerRow.height = 25;
+            const tCTR = data.totalImpressions ? (data.totalClicks / data.totalImpressions * 100) : 0;
+            const tCPC = data.totalClicks ? (data.totalSpent / data.totalClicks) : 0;
+            const tCPM = data.totalImpressions ? ((data.totalSpent / data.totalImpressions) * 1000) : 0;
+            const tCPL = data.totalResults ? (data.totalSpent / data.totalResults) : 0;
+            const tCPA = data.totalCO ? (data.totalSpent / data.totalCO) : 0;
+            const vr = sheet.getRow(3);
+            vr.alignment = { horizontal: 'right', vertical: 'middle' };
+            vr.height = 20;
+            setRubValue(sheet.getCell('A3'), data.totalSpent, rubFormat);
+            sheet.getCell('B3').value = Math.round(data.totalImpressions); sheet.getCell('B3').numFmt = '#,##0';
+            sheet.getCell('C3').value = Math.round(data.totalClicks); sheet.getCell('C3').numFmt = '#,##0';
+            sheet.getCell('D3').value = tCTR.toFixed(2) + '%'; sheet.getCell('D3').numFmt = '0.00%';
+            setRubValue(sheet.getCell('E3'), tCPC, rubFormat);
+            setRubValue(sheet.getCell('F3'), tCPM, rubFormat);
+            sheet.getCell('G3').value = Math.round(data.totalResults); sheet.getCell('G3').numFmt = '#,##0';
+            setRubValue(sheet.getCell('H3'), tCPL, rubFormat);
+            sheet.getCell('I3').value = data.totalCO; sheet.getCell('I3').numFmt = '#,##0';
+            setRubValue(sheet.getCell('J3'), tCPA, rubFormat);
+            sheet.getColumn(1).width = 20;
+            for (let i = 2; i <= 11; i++) sheet.getColumn(i).width = 18;
+
+            if (data.creatives.length > 0) {
+                const sr = 5;
+                sheet.getCell(`A${sr}`).value = 'Статистика по креативам';
+                sheet.getCell(`A${sr}`).font = { bold: true, size: 12, name: 'Montserrat' };
+                const hr = sr + 1, dr = sr + 2;
+                const headerValues = ['Метрика', ...data.creatives.map(c => c.name)];
+                applyHeaderStyle(sheet.getRow(hr), headerValues, headerValues.length);
+                const metrics = ['Расход','Показы','Клики','CTR','ВАЛ','CPL','ЦО','CPA'];
+                metrics.forEach((m, i) => {
+                    const cell = sheet.getCell(dr+i, 1);
+                    cell.value = m;
+                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Montserrat', size: 10 };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF76A5AF' } };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                });
+                data.creatives.forEach((c, i) => {
+                    const col = 2+i;
+                    const ctr = c.impressions?(c.clicks/c.impressions*100):0;
+                    const cpl = c.results?(c.spent/c.results):0;
+                    const cpa = c.co?(c.spent/c.co):0;
+                    setRubValue(sheet.getCell(dr,col), c.spent, rubFormat);
+                    sheet.getCell(dr+1,col).value=Math.round(c.impressions); sheet.getCell(dr+1,col).numFmt='#,##0';
+                    sheet.getCell(dr+2,col).value=Math.round(c.clicks); sheet.getCell(dr+2,col).numFmt='#,##0';
+                    sheet.getCell(dr+3,col).value=ctr.toFixed(2)+'%'; sheet.getCell(dr+3,col).numFmt='0.00%';
+                    sheet.getCell(dr+4,col).value=Math.round(c.results); sheet.getCell(dr+4,col).numFmt='#,##0';
+                    setRubValue(sheet.getCell(dr+5,col), cpl, rubFormat);
+                    sheet.getCell(dr+6,col).value=c.co||0; sheet.getCell(dr+6,col).numFmt='#,##0';
+                    setRubValue(sheet.getCell(dr+7,col), cpa, rubFormat);
+                });
+                for (let r=dr;r<dr+8;r++) for(let c=2;c<=data.creatives.length+1;c++) sheet.getCell(r,c).alignment={horizontal:'right',vertical:'middle'};
+                for(let i=2;i<=data.creatives.length+1;i++) sheet.getColumn(i).width=18;
+            }
+            if (data.adTexts.length > 0) {
+                const sr = data.creatives.length > 0 ? 16 : 5;
+                sheet.getCell(`A${sr}`).value = 'Статистика по текстам';
+                sheet.getCell(`A${sr}`).font = { bold: true, size: 12, name: 'Montserrat' };
+                const hr = sr + 1, dr = sr + 2;
+                const headerValues = ['Метрика', ...data.adTexts.map(t => t.name)];
+                applyHeaderStyle(sheet.getRow(hr), headerValues, headerValues.length);
+                const metrics = ['Расход','Показы','Клики','CTR','ВАЛ','CPL','ЦО','CPA'];
+                metrics.forEach((m, i) => {
+                    const cell = sheet.getCell(dr+i, 1);
+                    cell.value = m;
+                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Montserrat', size: 10 };
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF76A5AF' } };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                });
+                data.adTexts.forEach((t, i) => {
+                    const col = 2+i;
+                    const ctr = t.impressions?(t.clicks/t.impressions*100):0;
+                    const cpl = t.results?(t.spent/t.results):0;
+                    const cpa = t.co?(t.spent/t.co):0;
+                    setRubValue(sheet.getCell(dr,col), t.spent, rubFormat);
+                    sheet.getCell(dr+1,col).value=Math.round(t.impressions); sheet.getCell(dr+1,col).numFmt='#,##0';
+                    sheet.getCell(dr+2,col).value=Math.round(t.clicks); sheet.getCell(dr+2,col).numFmt='#,##0';
+                    sheet.getCell(dr+3,col).value=ctr.toFixed(2)+'%'; sheet.getCell(dr+3,col).numFmt='0.00%';
+                    sheet.getCell(dr+4,col).value=Math.round(t.results); sheet.getCell(dr+4,col).numFmt='#,##0';
+                    setRubValue(sheet.getCell(dr+5,col), cpl, rubFormat);
+                    sheet.getCell(dr+6,col).value=t.co||0; sheet.getCell(dr+6,col).numFmt='#,##0';
+                    setRubValue(sheet.getCell(dr+7,col), cpa, rubFormat);
+                });
+                for (let r=dr;r<dr+8;r++) for(let c=2;c<=data.adTexts.length+1;c++) sheet.getCell(r,c).alignment={horizontal:'right',vertical:'middle'};
+                for(let i=2;i<=data.adTexts.length+1;i++) sheet.getColumn(i).width=18;
+            }
+            if (data.targetings.length > 0) {
+                const ps = (data.creatives.length > 0 ? 12 : 0) + (data.adTexts.length > 0 ? 11 : 0);
+                const sr = 5 + ps;
+                sheet.getCell(`A${sr}`).value = 'Статистика по таргетингам';
+                sheet.getCell(`A${sr}`).font = { bold: true, size: 12, name: 'Montserrat' };
+                const hr = sr + 1, dr = sr + 2;
+                const headers = ['Аудитория','Расход','Показы','Клики','CTR (%)','CPC','CPM','ВАЛ','CPL','ЦО','CPA'];
+                applyHeaderStyle(sheet.getRow(hr), headers, headers.length);
+                sheet.getRow(hr).height = 25;
+                data.targetings.forEach((t, i) => {
+                    const row = dr+i;
+                    const ctr=t.impressions?(t.clicks/t.impressions*100):0;
+                    const cpc=t.clicks?(t.spent/t.clicks):0;
+                    const cpm=t.impressions?((t.spent/t.impressions)*1000):0;
+                    const cpl=t.results?(t.spent/t.results):0;
+                    const cpa=t.co?(t.spent/t.co):0;
+                    sheet.getCell(row,1).value=t.name;
+                    setRubValue(sheet.getCell(row,2),t.spent,rubFormat);
+                    sheet.getCell(row,3).value=Math.round(t.impressions); sheet.getCell(row,3).numFmt='#,##0';
+                    sheet.getCell(row,4).value=Math.round(t.clicks); sheet.getCell(row,4).numFmt='#,##0';
+                    sheet.getCell(row,5).value=ctr.toFixed(2)+'%'; sheet.getCell(row,5).numFmt='0.00%';
+                    setRubValue(sheet.getCell(row,6),cpc,rubFormat);
+                    setRubValue(sheet.getCell(row,7),cpm,rubFormat);
+                    sheet.getCell(row,8).value=Math.round(t.results); sheet.getCell(row,8).numFmt='#,##0';
+                    setRubValue(sheet.getCell(row,9),cpl,rubFormat);
+                    sheet.getCell(row,10).value=t.co||0; sheet.getCell(row,10).numFmt='#,##0';
+                    setRubValue(sheet.getCell(row,11),cpa,rubFormat);
+                    sheet.getRow(row).alignment={horizontal:'right',vertical:'middle'};
+                });
+                const tr = dr + data.targetings.length;
+                const sS=data.targetings.reduce((s,t)=>s+(t.spent||0),0);
+                const sI=data.targetings.reduce((s,t)=>s+(t.impressions||0),0);
+                const sC=data.targetings.reduce((s,t)=>s+(t.clicks||0),0);
+                const sR=data.targetings.reduce((s,t)=>s+(t.results||0),0);
+                const sCO=data.targetings.reduce((s,t)=>s+(t.co||0),0);
+                const to= sheet.getRow(tr);
+                to.font={bold:true};
+                to.alignment={horizontal:'right',vertical:'middle'};
+                to.height=20;
+                to.getCell(1).value='Итого:';
+                setRubValue(to.getCell(2),sS,rubFormat);
+                to.getCell(3).value=Math.round(sI); to.getCell(3).numFmt='#,##0';
+                to.getCell(4).value=Math.round(sC); to.getCell(4).numFmt='#,##0';
+                to.getCell(5).value=(sI?(sC/sI*100):0).toFixed(2)+'%'; to.getCell(5).numFmt='0.00%';
+                setRubValue(to.getCell(6),sC?(sS/sC):0,rubFormat);
+                setRubValue(to.getCell(7),sI?((sS/sI)*1000):0,rubFormat);
+                to.getCell(8).value=Math.round(sR); to.getCell(8).numFmt='#,##0';
+                setRubValue(to.getCell(9),sR?(sS/sR):0,rubFormat);
+                to.getCell(10).value=sCO; to.getCell(10).numFmt='#,##0';
+                setRubValue(to.getCell(11),sCO?(sS/sCO):0,rubFormat);
+                for(let i=2;i<=11;i++) sheet.getColumn(i).width=18;
+            }
+            return await workbook.xlsx.writeBuffer();
+        }
+
+        function showNotification(msg, type='info') {
+            const n=document.getElementById('notification');
+            n.textContent=msg;
+            n.className=`notification ${type}`;
+            n.style.display='block';
+            setTimeout(()=>{n.style.display='none';},5000);
+        }
+        function readExcelFile(file) {
+            return new Promise((res,rej)=>{
+                const r=new FileReader();
+                r.onload=(e)=>{
+                    try{
+                        const d=new Uint8Array(e.target.result);
+                        const wb=XLSX.read(d,{type:'array'});
+                        res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}));
+                    }catch(err){rej(err);}
+                };
+                r.onerror=rej;
+                r.readAsArrayBuffer(file);
+            });
+        }
+        function downloadFile(data, fn) {
+            const b=new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+            const u=URL.createObjectURL(b);
+            const a=document.createElement('a');
+            a.href=u;
+            a.download=fn;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(u);
+        }
+
+        document.getElementById('vk-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const title = document.getElementById('vk-title').value.trim();
+            const df = document.getElementById('vk-date-from').value;
+            const dt = document.getElementById('vk-date-to').value;
+            if (!title) { showNotification('❌ Укажите название проекта', 'error'); return; }
+            const adsF = document.getElementById('vk-ads').files[0];
+            const grpF = document.getElementById('vk-groups').files[0];
+            if (!adsF || !grpF) { showNotification('❌ Загрузите файлы Объявления и Группы', 'error'); return; }
+            btn.disabled = true;
+            try {
+                let period = '';
+                if (df && dt) period = `${df} — ${dt}`;
+                const vat = parseFloat(document.getElementById('vk-vat').value) || 1.22;
+                const ak1 = parseFloat(document.getElementById('vk-ak1').value) || 1;
+                const ak2 = parseFloat(document.getElementById('vk-ak2').value) || 1;
+                const ak3 = parseFloat(document.getElementById('vk-ak3').value) || 1;
+                const ak = ak1 * ak2 * ak3;
+                if (vat > 5 || ak1 > 5 || ak2 > 5 || ak3 > 5) throw new Error('Некорректное значение НДС или АК');
+                const phonesText = document.getElementById('vk-phones').value;
+                const targetPhones = phonesText && phonesText.trim() ? phonesText.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
+                const tempF = document.getElementById('vk-temp').files[0];
+                showNotification('Чтение файлов...', 'info');
+                const adsData = await readExcelFile(adsF);
+                const groupsData = await readExcelFile(grpF);
+                const tempData = tempF ? await readExcelFile(tempF) : [];
+                showNotification('Обработка данных...', 'info');
+                const reportData = processVKReport(adsData, groupsData, tempData, targetPhones, { title, period, vat, ak });
+                showNotification('Генерация отчета...', 'info');
+                const excelData = await generateExcelReport(reportData);
+                downloadFile(excelData, period ? `${title}_${period.replace(/\s/g, '_')}.xlsx` : `${title}.xlsx`);
+                showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO, 'success');
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showNotification('❌ ' + error.message, 'error');
+            }
+            finally { btn.disabled = false; }
+        });
+    </script>
+</body>
+</html>
