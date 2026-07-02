@@ -31,6 +31,7 @@ function renderFileNames(label, files) {
         const item = document.createElement('span');
         item.className = 'file-name-item';
         item.textContent = `✅ ${file.name}`;
+        item.title = file.name;
         label.appendChild(item);
     });
 }
@@ -270,7 +271,7 @@ function clearForm() {
     document.getElementById('vk-phones').value = '';
     document.getElementById('xlsx-font').value = 'Montserrat';
     document.getElementById('xlsx-font-size').value = '10';
-    document.getElementById('xlsx-horizontal-align').value = 'left';
+    document.getElementById('xlsx-horizontal-align').value = 'center';
     document.getElementById('xlsx-vertical-align').value = 'middle';
 
     resetUploadState('vk-ads', 'ads-name');

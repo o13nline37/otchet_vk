@@ -206,6 +206,16 @@ h1 {
     border-radius: 8px;
     background: #ffffff;
     box-shadow: 0 18px 42px rgba(29, 52, 92, 0.18);
+    scrollbar-width: thin;
+}
+
+.project-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.project-suggestions::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(154, 180, 220, 0.6);
 }
 
 .project-suggestions.visible {
@@ -260,10 +270,14 @@ h1 {
 
 .form-group input:hover,
 .form-group textarea:hover,
-.form-group select:hover,
 .file-input-wrapper:hover {
     border-color: #9ab4dc;
     background: #fbfdff;
+}
+
+.form-group select:hover {
+    border-color: #9ab4dc;
+    background-color: #fbfdff;
 }
 
 .form-group input:focus,
@@ -372,13 +386,24 @@ h1 {
 .file-input-name {
     min-width: 0;
     flex: 1;
-    overflow: visible;
+    max-height: 88px;
+    overflow-y: auto;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.35;
     white-space: normal;
     overflow-wrap: anywhere;
     word-break: break-word;
+    scrollbar-width: thin;
+}
+
+.file-input-name::-webkit-scrollbar {
+    width: 6px;
+}
+
+.file-input-name::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(154, 180, 220, 0.6);
 }
 
 .file-name-item {
@@ -655,10 +680,17 @@ h1 {
 
     .form-row-date {
         grid-template-columns: 1fr;
+        justify-items: center;
     }
 
     .date-separator {
-        width: 100%;
+        width: 34px;
+        font-size: 0;
+    }
+
+    .date-separator::after {
+        content: "↓";
+        font-size: 15px;
     }
 
     .format-buttons {
