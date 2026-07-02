@@ -107,7 +107,16 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
         }
     }
 
-    const shouldFilterByTargetPhones = targetPhones.size > 0;
+    if (targetPhones.size === 0) {
+        return {
+            coByCreative: new Map(),
+            coByTargeting: new Map(),
+            coByAdText: new Map(),
+            totalCO: 0,
+            unmatchedLeadCount: 0,
+        };
+    }
+
     const adsAdIdIndex = findColumnIndex(adsData, ['id объявления', 'id обьявления', 'ad id'], 6);
 
     const callData = [];
@@ -132,7 +141,7 @@ function buildCOByAdId(adsData, groupsData, tempData, targetPhonesFromInput) {
         const adId = callData[i][0];
         const phone = callData[i][1];
 
-        if (adId && phone && (!shouldFilterByTargetPhones || targetPhones.has(phone))) {
+        if (adId && phone && targetPhones.has(phone)) {
             coByCallAdId.set(adId, (coByCallAdId.get(adId) || 0) + 1);
         }
     }

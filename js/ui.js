@@ -2,6 +2,8 @@ import { setNumberFormat } from './formatters.js';
 
 const FILE_NOT_SELECTED_TEXT = 'Файл не выбран';
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const PROJECTS_DATA_URL = 'data/projects.json';
+const MAX_PROJECT_SUGGESTIONS = 7;
 
 function toggleHint(button) {
     const element = document.getElementById(button.dataset.hintTarget);
@@ -85,6 +87,178 @@ function syncInputFiles(input, files, shouldDispatchChange = false) {
     }
 }
 
+function normalizeSearchText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function scoreProjectName(projectName, query) {
+    const normalizedName = normalizeSearchText(projectName);
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return -1;
+    if (normalizedName === normalizedQuery) return 1000;
+    if (normalizedName.startsWith(normalizedQuery)) return 800 - normalizedName.length;
+
+    const wordStartIndex = normalizedName.indexOf(' ' + normalizedQuery);
+    if (wordStartIndex !== -1) return 650 - wordStartIndex;
+
+    const includesIndex = normalizedName.indexOf(normalizedQuery);
+    if (includesIndex !== -1) return 500 - includesIndex;
+
+    let queryIndex = 0;
+    for (let i = 0; i < normalizedName.length && queryIndex < normalizedQuery.length; i++) {
+        if (normalizedName[i] === normalizedQuery[queryIndex]) queryIndex++;
+    }
+
+    return queryIndex === normalizedQuery.length ? 220 - normalizedName.length : -1;
+}
+
+function getProjectMatches(projects, query) {
+    return projects
+        .map((project) => ({ name: project, score: scoreProjectName(project, query) }))
+        .filter((project) => project.score >= 0)
+        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+        .slice(0, MAX_PROJECT_SUGGESTIONS)
+        .map((project) => project.name);
+}
+
+function appendHighlightedText(element, text, query) {
+    const normalizedText = normalizeSearchText(text);
+    const normalizedQuery = normalizeSearchText(query);
+    const matchIndex = normalizedQuery ? normalizedText.indexOf(normalizedQuery) : -1;
+
+    if (matchIndex === -1) {
+        element.textContent = text;
+        return;
+    }
+
+    element.append(document.createTextNode(text.slice(0, matchIndex)));
+
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(matchIndex, matchIndex + query.length);
+    element.append(mark, document.createTextNode(text.slice(matchIndex + query.length)));
+}
+
+async function loadProjectNames() {
+    try {
+        const response = await fetch(PROJECTS_DATA_URL, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Не удалось загрузить ${PROJECTS_DATA_URL}`);
+
+        const data = await response.json();
+        const projects = Array.isArray(data) ? data : data.projects;
+        return Array.from(new Set((projects || []).map((name) => String(name).trim()).filter(Boolean)));
+    } catch (error) {
+        console.warn(error);
+        return [];
+    }
+}
+
+function bindProjectAutocomplete() {
+    const input = document.getElementById('vk-title');
+    const suggestions = document.getElementById('project-suggestions');
+    if (!input || !suggestions) return;
+
+    let projects = [];
+    let visibleMatches = [];
+    let activeIndex = -1;
+
+    const hideSuggestions = () => {
+        suggestions.classList.remove('visible');
+        suggestions.replaceChildren();
+        input.setAttribute('aria-expanded', 'false');
+        activeIndex = -1;
+        visibleMatches = [];
+    };
+
+    const selectProject = (projectName) => {
+        input.value = projectName;
+        hideSuggestions();
+        input.focus();
+    };
+
+    const renderSuggestions = () => {
+        const query = input.value;
+        visibleMatches = getProjectMatches(projects, query);
+        suggestions.replaceChildren();
+
+        if (visibleMatches.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        activeIndex = 0;
+        visibleMatches.forEach((projectName, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'project-suggestion';
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false');
+
+            const text = document.createElement('span');
+            text.className = 'project-suggestion-text';
+            appendHighlightedText(text, projectName, query);
+            item.appendChild(text);
+
+            item.addEventListener('mousedown', (event) => event.preventDefault());
+            item.addEventListener('click', () => selectProject(projectName));
+            suggestions.appendChild(item);
+        });
+
+        suggestions.classList.add('visible');
+        input.setAttribute('aria-expanded', 'true');
+        updateActiveSuggestion();
+    };
+
+    const updateActiveSuggestion = () => {
+        Array.from(suggestions.children).forEach((item, index) => {
+            const isActive = index === activeIndex;
+            item.classList.toggle('is-active', isActive);
+            item.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            if (isActive) item.scrollIntoView({ block: 'nearest' });
+        });
+    };
+
+    input.addEventListener('input', renderSuggestions);
+    input.addEventListener('focus', () => {
+        if (input.value.trim()) renderSuggestions();
+    });
+    input.addEventListener('keydown', (event) => {
+        if (!suggestions.classList.contains('visible')) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            activeIndex = (activeIndex + 1) % visibleMatches.length;
+            updateActiveSuggestion();
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeIndex = (activeIndex - 1 + visibleMatches.length) % visibleMatches.length;
+            updateActiveSuggestion();
+        }
+
+        if (event.key === 'Enter' && activeIndex >= 0) {
+            event.preventDefault();
+            selectProject(visibleMatches[activeIndex]);
+        }
+
+        if (event.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!input.closest('.project-autocomplete')?.contains(event.target)) hideSuggestions();
+    });
+
+    loadProjectNames().then((loadedProjects) => {
+        projects = loadedProjects;
+    });
+}
+
 function clearForm() {
     document.getElementById('vk-title').value = '';
     document.getElementById('vk-date-from').value = '';
@@ -103,6 +277,8 @@ function clearForm() {
     resetUploadState('vk-groups', 'groups-name');
     resetUploadState('vk-temp', 'temp-name');
 
+    document.getElementById('project-suggestions')?.classList.remove('visible');
+    document.getElementById('project-suggestions')?.replaceChildren();
     document.querySelectorAll('.help-hint').forEach((hint) => hint.classList.remove('visible'));
     document.querySelectorAll('.help-btn').forEach((button) => button.classList.remove('is-open'));
     setFormat('integer');
@@ -190,6 +366,7 @@ export function bindUiEvents() {
 
     document.getElementById('fmt-clear').addEventListener('click', clearForm);
 
+    bindProjectAutocomplete();
     bindFilePicker('vk-ads', 'ads-name');
     bindFilePicker('vk-groups', 'groups-name');
     bindFilePicker('vk-temp', 'temp-name');

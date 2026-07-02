@@ -26,7 +26,18 @@
                 <div class="form-grid">
                     <div class="form-group full-width">
                         <label for="vk-title">📌 Название проекта</label>
-                        <input type="text" id="vk-title" placeholder="Например: VK Июль">
+                        <div class="project-autocomplete">
+                            <input
+                                type="text"
+                                id="vk-title"
+                                placeholder="Например: VK Июль"
+                                autocomplete="off"
+                                aria-autocomplete="list"
+                                aria-expanded="false"
+                                aria-controls="project-suggestions"
+                            >
+                            <div class="project-suggestions" id="project-suggestions" role="listbox"></div>
+                        </div>
                     </div>
 
                     <div class="form-group full-width">

@@ -189,6 +189,75 @@ h1 {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.project-autocomplete {
+    position: relative;
+}
+
+.project-suggestions {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: none;
+    max-height: 278px;
+    overflow-y: auto;
+    border: 1px solid rgba(154, 180, 220, 0.72);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 42px rgba(29, 52, 92, 0.18);
+}
+
+.project-suggestions.visible {
+    display: block;
+    animation: hintIn 0.16s ease;
+}
+
+.project-suggestion {
+    width: 100%;
+    min-height: 42px;
+    border: 0;
+    border-bottom: 1px solid #eef3fa;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: transparent;
+    color: #253650;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.project-suggestion:last-child {
+    border-bottom: 0;
+}
+
+.project-suggestion::before {
+    content: "🔎";
+    flex: 0 0 auto;
+    font-size: 14px;
+}
+
+.project-suggestion-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.project-suggestion:hover,
+.project-suggestion.is-active {
+    background: #edf4ff;
+    color: var(--primary-dark);
+}
+
+.project-suggestion mark {
+    padding: 0;
+    background: transparent;
+    color: var(--teal);
+    font-weight: 850;
+}
+
 .form-group input:hover,
 .form-group textarea:hover,
 .form-group select:hover,

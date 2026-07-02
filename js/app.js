@@ -93,10 +93,7 @@ async function handleSubmit(event) {
             : `${config.title}.xlsx`;
 
         downloadFile(excelData, filename);
-        const unmatchedText = reportData.unmatchedLeadCount
-            ? `, без объявления в выгрузке: ${reportData.unmatchedLeadCount}`
-            : '';
-        showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO + unmatchedText, 'success');
+        showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO, 'success');
     } catch (error) {
         console.error('Ошибка:', error);
         showNotification(error.message, 'error');
