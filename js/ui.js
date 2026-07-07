@@ -273,6 +273,9 @@ function clearForm() {
     document.getElementById('xlsx-font-size').value = '10';
     document.getElementById('xlsx-horizontal-align').value = 'center';
     document.getElementById('xlsx-vertical-align').value = 'middle';
+    document.getElementById('output-xlsx').checked = true;
+    document.getElementById('gsheet-url').value = '';
+    document.getElementById('gsheet-link-group').hidden = true;
 
     resetUploadState('vk-ads', 'ads-name');
     resetUploadState('vk-groups', 'groups-name');
@@ -337,6 +340,25 @@ function bindFilePicker(inputId, labelId) {
     });
 }
 
+function bindOutputFormatToggle() {
+    const gsheetLinkGroup = document.getElementById('gsheet-link-group');
+    const gsheetRadio = document.getElementById('output-gsheet');
+
+    document.querySelectorAll('input[name="output-format"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+            gsheetLinkGroup.hidden = !gsheetRadio.checked;
+        });
+    });
+}
+
+export function getOutputFormat() {
+    return document.getElementById('output-gsheet').checked ? 'gsheet' : 'xlsx';
+}
+
+export function getGoogleSheetInput() {
+    return document.getElementById('gsheet-url').value.trim();
+}
+
 export function showNotification(message, type = 'info') {
     const notification = document.getElementById('notification');
     notification.textContent = message;
@@ -371,5 +393,6 @@ export function bindUiEvents() {
     bindFilePicker('vk-ads', 'ads-name');
     bindFilePicker('vk-groups', 'groups-name');
     bindFilePicker('vk-temp', 'temp-name');
+    bindOutputFormatToggle();
     setFormat('integer');
 }

@@ -1,6 +1,6 @@
 import { getRubFormat } from './formatters.js';
 
-function normalizeExcelStyleSettings(settings = {}) {
+export function normalizeExcelStyleSettings(settings = {}) {
     const allowedHorizontal = new Set(['left', 'center', 'right']);
     const allowedVertical = new Set(['top', 'middle', 'bottom']);
     const fontSize = Number(settings.fontSize) || 10;
@@ -46,12 +46,15 @@ function applyExcelStyleSettings(sheet, settings) {
 }
 
 function setRubValue(cell, value, format) {
-    if (!value || value === 0) {
-        cell.value = '-';
-    } else {
-        cell.value = value;
-        cell.numFmt = format;
-    }
+    cell.value = value || 0;
+    cell.numFmt = `${format};-${format};"-"`;
+}
+
+export function divisionFormula(numeratorRef, denominatorRef, multiplier) {
+    const expression = multiplier && multiplier !== 1
+        ? `${numeratorRef}/${denominatorRef}*${multiplier}`
+        : `${numeratorRef}/${denominatorRef}`;
+    return `IFERROR(${expression},0)`;
 }
 
 function applyHeaderStyle(row, values, colCount) {
@@ -85,23 +88,27 @@ function addMetricSection(sheet, startRow, title, items, rubFormat) {
 
     items.forEach((item, index) => {
         const col = 2 + index;
-        const ctr = item.impressions ? (item.clicks / item.impressions * 100) : 0;
-        const cpl = item.results ? (item.spent / item.results) : 0;
-        const cpa = item.co ? (item.spent / item.co) : 0;
+        const ref = (row) => sheet.getCell(row, col).address;
+        const impressionsRow = dataRow + 1;
+        const clicksRow = dataRow + 2;
+        const resultsRow = dataRow + 4;
+        const coRow = dataRow + 6;
 
         setRubValue(sheet.getCell(dataRow, col), item.spent, rubFormat);
-        sheet.getCell(dataRow + 1, col).value = Math.round(item.impressions);
-        sheet.getCell(dataRow + 1, col).numFmt = '#,##0';
-        sheet.getCell(dataRow + 2, col).value = Math.round(item.clicks);
-        sheet.getCell(dataRow + 2, col).numFmt = '#,##0';
-        sheet.getCell(dataRow + 3, col).value = ctr.toFixed(2) + '%';
-        sheet.getCell(dataRow + 3, col).numFmt = '0.00%';
-        sheet.getCell(dataRow + 4, col).value = Math.round(item.results);
-        sheet.getCell(dataRow + 4, col).numFmt = '#,##0';
-        setRubValue(sheet.getCell(dataRow + 5, col), cpl, rubFormat);
-        sheet.getCell(dataRow + 6, col).value = item.co || 0;
-        sheet.getCell(dataRow + 6, col).numFmt = '#,##0';
-        setRubValue(sheet.getCell(dataRow + 7, col), cpa, rubFormat);
+        sheet.getCell(impressionsRow, col).value = Math.round(item.impressions);
+        sheet.getCell(impressionsRow, col).numFmt = '#,##0';
+        sheet.getCell(clicksRow, col).value = Math.round(item.clicks);
+        sheet.getCell(clicksRow, col).numFmt = '#,##0';
+
+        sheet.getCell(dataRow + 3, col).value = { formula: divisionFormula(ref(clicksRow), ref(impressionsRow), 100) };
+        sheet.getCell(dataRow + 3, col).numFmt = '0.00"%"';
+
+        sheet.getCell(resultsRow, col).value = Math.round(item.results);
+        sheet.getCell(resultsRow, col).numFmt = '#,##0';
+        setRubValue(sheet.getCell(dataRow + 5, col), { formula: divisionFormula(ref(dataRow), ref(resultsRow)) }, rubFormat);
+        sheet.getCell(coRow, col).value = item.co || 0;
+        sheet.getCell(coRow, col).numFmt = '#,##0';
+        setRubValue(sheet.getCell(dataRow + 7, col), { formula: divisionFormula(ref(dataRow), ref(coRow)) }, rubFormat);
     });
 
     for (let row = dataRow; row < dataRow + 8; row++) {
@@ -128,11 +135,7 @@ function addTargetingsSection(sheet, startRow, targetings, rubFormat) {
 
     targetings.forEach((targeting, index) => {
         const row = dataRow + index;
-        const ctr = targeting.impressions ? (targeting.clicks / targeting.impressions * 100) : 0;
-        const cpc = targeting.clicks ? (targeting.spent / targeting.clicks) : 0;
-        const cpm = targeting.impressions ? ((targeting.spent / targeting.impressions) * 1000) : 0;
-        const cpl = targeting.results ? (targeting.spent / targeting.results) : 0;
-        const cpa = targeting.co ? (targeting.spent / targeting.co) : 0;
+        const ref = (col) => sheet.getCell(row, col).address;
 
         sheet.getCell(row, 1).value = targeting.name;
         setRubValue(sheet.getCell(row, 2), targeting.spent, rubFormat);
@@ -140,16 +143,19 @@ function addTargetingsSection(sheet, startRow, targetings, rubFormat) {
         sheet.getCell(row, 3).numFmt = '#,##0';
         sheet.getCell(row, 4).value = Math.round(targeting.clicks);
         sheet.getCell(row, 4).numFmt = '#,##0';
-        sheet.getCell(row, 5).value = ctr.toFixed(2) + '%';
-        sheet.getCell(row, 5).numFmt = '0.00%';
-        setRubValue(sheet.getCell(row, 6), cpc, rubFormat);
-        setRubValue(sheet.getCell(row, 7), cpm, rubFormat);
+
+        sheet.getCell(row, 5).value = { formula: divisionFormula(ref(4), ref(3), 100) };
+        sheet.getCell(row, 5).numFmt = '0.00"%"';
+
+        setRubValue(sheet.getCell(row, 6), { formula: divisionFormula(ref(2), ref(4)) }, rubFormat);
+        setRubValue(sheet.getCell(row, 7), { formula: divisionFormula(ref(2), ref(3), 1000) }, rubFormat);
+
         sheet.getCell(row, 8).value = Math.round(targeting.results);
         sheet.getCell(row, 8).numFmt = '#,##0';
-        setRubValue(sheet.getCell(row, 9), cpl, rubFormat);
+        setRubValue(sheet.getCell(row, 9), { formula: divisionFormula(ref(2), ref(8)) }, rubFormat);
         sheet.getCell(row, 10).value = targeting.co || 0;
         sheet.getCell(row, 10).numFmt = '#,##0';
-        setRubValue(sheet.getCell(row, 11), cpa, rubFormat);
+        setRubValue(sheet.getCell(row, 11), { formula: divisionFormula(ref(2), ref(10)) }, rubFormat);
         sheet.getRow(row).alignment = { horizontal: 'right', vertical: 'middle' };
     });
 
@@ -160,6 +166,7 @@ function addTargetingsSection(sheet, startRow, targetings, rubFormat) {
     const totalResults = targetings.reduce((sum, targeting) => sum + (targeting.results || 0), 0);
     const totalCO = targetings.reduce((sum, targeting) => sum + (targeting.co || 0), 0);
     const totalRow = sheet.getRow(totalRowIndex);
+    const totalRef = (col) => sheet.getCell(totalRowIndex, col).address;
 
     totalRow.font = { bold: true };
     totalRow.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -170,16 +177,19 @@ function addTargetingsSection(sheet, startRow, targetings, rubFormat) {
     totalRow.getCell(3).numFmt = '#,##0';
     totalRow.getCell(4).value = Math.round(totalClicks);
     totalRow.getCell(4).numFmt = '#,##0';
-    totalRow.getCell(5).value = (totalImpressions ? (totalClicks / totalImpressions * 100) : 0).toFixed(2) + '%';
-    totalRow.getCell(5).numFmt = '0.00%';
-    setRubValue(totalRow.getCell(6), totalClicks ? (totalSpent / totalClicks) : 0, rubFormat);
-    setRubValue(totalRow.getCell(7), totalImpressions ? ((totalSpent / totalImpressions) * 1000) : 0, rubFormat);
+
+    totalRow.getCell(5).value = { formula: divisionFormula(totalRef(4), totalRef(3), 100) };
+    totalRow.getCell(5).numFmt = '0.00"%"';
+
+    setRubValue(totalRow.getCell(6), { formula: divisionFormula(totalRef(2), totalRef(4)) }, rubFormat);
+    setRubValue(totalRow.getCell(7), { formula: divisionFormula(totalRef(2), totalRef(3), 1000) }, rubFormat);
+
     totalRow.getCell(8).value = Math.round(totalResults);
     totalRow.getCell(8).numFmt = '#,##0';
-    setRubValue(totalRow.getCell(9), totalResults ? (totalSpent / totalResults) : 0, rubFormat);
+    setRubValue(totalRow.getCell(9), { formula: divisionFormula(totalRef(2), totalRef(8)) }, rubFormat);
     totalRow.getCell(10).value = totalCO;
     totalRow.getCell(10).numFmt = '#,##0';
-    setRubValue(totalRow.getCell(11), totalCO ? (totalSpent / totalCO) : 0, rubFormat);
+    setRubValue(totalRow.getCell(11), { formula: divisionFormula(totalRef(2), totalRef(10)) }, rubFormat);
 
     for (let i = 2; i <= 11; i++) {
         sheet.getColumn(i).width = 18;
@@ -202,11 +212,6 @@ export async function generateExcelReport(data, excelStyleSettings = {}) {
     applyHeaderStyle(headerRow, header, 10);
     headerRow.height = 25;
 
-    const totalCtr = data.totalImpressions ? (data.totalClicks / data.totalImpressions * 100) : 0;
-    const totalCpc = data.totalClicks ? (data.totalSpent / data.totalClicks) : 0;
-    const totalCpm = data.totalImpressions ? ((data.totalSpent / data.totalImpressions) * 1000) : 0;
-    const totalCpl = data.totalResults ? (data.totalSpent / data.totalResults) : 0;
-    const totalCpa = data.totalCO ? (data.totalSpent / data.totalCO) : 0;
     const valuesRow = sheet.getRow(3);
 
     valuesRow.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -216,16 +221,19 @@ export async function generateExcelReport(data, excelStyleSettings = {}) {
     sheet.getCell('B3').numFmt = '#,##0';
     sheet.getCell('C3').value = Math.round(data.totalClicks);
     sheet.getCell('C3').numFmt = '#,##0';
-    sheet.getCell('D3').value = totalCtr.toFixed(2) + '%';
-    sheet.getCell('D3').numFmt = '0.00%';
-    setRubValue(sheet.getCell('E3'), totalCpc, rubFormat);
-    setRubValue(sheet.getCell('F3'), totalCpm, rubFormat);
+
+    sheet.getCell('D3').value = { formula: divisionFormula('C3', 'B3', 100) };
+    sheet.getCell('D3').numFmt = '0.00"%"';
+
+    setRubValue(sheet.getCell('E3'), { formula: divisionFormula('A3', 'C3') }, rubFormat);
+    setRubValue(sheet.getCell('F3'), { formula: divisionFormula('A3', 'B3', 1000) }, rubFormat);
+
     sheet.getCell('G3').value = Math.round(data.totalResults);
     sheet.getCell('G3').numFmt = '#,##0';
-    setRubValue(sheet.getCell('H3'), totalCpl, rubFormat);
+    setRubValue(sheet.getCell('H3'), { formula: divisionFormula('A3', 'G3') }, rubFormat);
     sheet.getCell('I3').value = data.totalCO;
     sheet.getCell('I3').numFmt = '#,##0';
-    setRubValue(sheet.getCell('J3'), totalCpa, rubFormat);
+    setRubValue(sheet.getCell('J3'), { formula: divisionFormula('A3', 'I3') }, rubFormat);
     sheet.getColumn(1).width = 20;
 
     for (let i = 2; i <= 11; i++) {

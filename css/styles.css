@@ -65,17 +65,11 @@ button {
 }
 
 .app-mark {
-    width: 58px;
+    width: 134px;
     height: 58px;
-    border-radius: 18px;
-    display: grid;
-    place-items: center;
-    color: white;
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: 0;
-    background: linear-gradient(135deg, var(--primary), var(--teal));
-    box-shadow: 0 14px 32px rgba(47, 111, 237, 0.28);
+    flex: 0 0 auto;
+    object-fit: cover;
+    object-position: top;
 }
 
 h1 {
@@ -498,12 +492,62 @@ h1 {
     white-space: nowrap;
 }
 
-.excel-settings {
+.excel-settings,
+.output-settings {
     margin-top: 22px;
     padding: 18px;
     border: 1px solid rgba(217, 226, 239, 0.9);
     border-radius: 8px;
     background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+}
+
+.output-format-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.output-format-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+    color: #40516f;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.output-format-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.output-format-option:hover {
+    transform: translateY(-1px);
+    border-color: #9ab4dc;
+    box-shadow: 0 8px 18px rgba(29, 52, 92, 0.08);
+}
+
+.output-format-option:has(input:checked) {
+    border-color: transparent;
+    background: #e9f2ff;
+    color: var(--primary-dark);
+    box-shadow: inset 0 0 0 1px rgba(47, 111, 237, 0.18);
+}
+
+.gsheet-link-group {
+    margin-top: 14px;
 }
 
 .settings-title {
@@ -674,6 +718,7 @@ h1 {
     .uploads-grid,
     .multipliers-row,
     .settings-grid,
+    .output-format-row,
     .actions-bar {
         grid-template-columns: 1fr;
     }
@@ -713,10 +758,9 @@ h1 {
     }
 
     .app-mark {
-        width: 48px;
+        width: 111px;
         height: 48px;
         border-radius: 8px;
-        font-size: 17px;
     }
 
     h1 {

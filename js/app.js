@@ -1,7 +1,9 @@
 import { generateExcelReport } from './excelGenerator.js';
 import { downloadFile, readExcelFile } from './fileReader.js';
 import { processVKReport } from './reportProcessor.js';
-import { bindUiEvents, getSelectedFiles, showNotification } from './ui.js';
+import { bindUiEvents, getSelectedFiles, getOutputFormat, getGoogleSheetInput, showNotification } from './ui.js';
+import { extractSpreadsheetId } from './googleAuth.js';
+import { exportReportToGoogleSheet } from './sheetsReportBuilder.js';
 
 function getTargetPhones() {
     const phonesText = document.getElementById('vk-phones').value;
@@ -45,7 +47,7 @@ function getExcelStyleSettings() {
     };
 }
 
-function validateForm(config, adsFile, groupsFile) {
+function validateForm(config, adsFile, groupsFile, outputFormat, spreadsheetId) {
     if (!config.title) {
         showNotification('📌 Укажите название проекта', 'error');
         return false;
@@ -53,6 +55,11 @@ function validateForm(config, adsFile, groupsFile) {
 
     if (!adsFile || !groupsFile) {
         showNotification('📎 Загрузите файлы Объявления и Группы', 'error');
+        return false;
+    }
+
+    if (outputFormat === 'gsheet' && !spreadsheetId) {
+        showNotification('🔗 Вставьте ссылку или ID Google-таблицы', 'error');
         return false;
     }
 
@@ -71,9 +78,11 @@ async function handleSubmit(event) {
     const adsFile = getSelectedFiles('vk-ads')[0];
     const groupsFile = getSelectedFiles('vk-groups')[0];
     const tempFiles = getSelectedFiles('vk-temp');
+    const outputFormat = getOutputFormat();
+    const spreadsheetId = outputFormat === 'gsheet' ? extractSpreadsheetId(getGoogleSheetInput()) : '';
 
     try {
-        if (!validateForm(config, adsFile, groupsFile)) return;
+        if (!validateForm(config, adsFile, groupsFile, outputFormat, spreadsheetId)) return;
 
         submitButton.disabled = true;
         submitButton.textContent = '⏳ Собираю отчет...';
@@ -86,14 +95,22 @@ async function handleSubmit(event) {
         showNotification('🧮 Обработка данных...', 'info');
         const reportData = processVKReport(adsData, groupsData, tempData, getTargetPhones(), config);
 
-        showNotification('✨ Генерация отчета...', 'info');
-        const excelData = await generateExcelReport(reportData, getExcelStyleSettings());
-        const filename = config.period
-            ? `${config.title}_${config.period.replace(/\s/g, '_')}.xlsx`
-            : `${config.title}.xlsx`;
+        if (outputFormat === 'gsheet') {
+            showNotification('🔐 Ожидаю авторизацию Google...', 'info');
+            const sheetUrl = await exportReportToGoogleSheet(spreadsheetId, reportData, getExcelStyleSettings());
 
-        downloadFile(excelData, filename);
-        showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO, 'success');
+            showNotification('✅ Лист добавлен в Google-таблицу! ЦО=' + reportData.totalCO, 'success');
+            window.open(sheetUrl, '_blank', 'noopener');
+        } else {
+            showNotification('✨ Генерация отчета...', 'info');
+            const excelData = await generateExcelReport(reportData, getExcelStyleSettings());
+            const filename = config.period
+                ? `${config.title}_${config.period.replace(/\s/g, '_')}.xlsx`
+                : `${config.title}.xlsx`;
+
+            downloadFile(excelData, filename);
+            showNotification('✅ Отчет создан! ЦО=' + reportData.totalCO, 'success');
+        }
     } catch (error) {
         console.error('Ошибка:', error);
         showNotification(error.message, 'error');

@@ -7,13 +7,14 @@
     <link rel="stylesheet" href="css/styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script type="module" src="js/app.js"></script>
 </head>
 <body>
     <main class="app-shell">
         <header class="app-header">
             <div class="brand-block">
-                <div class="app-mark" aria-hidden="true">VK</div>
+                <img class="app-mark" src="assets/logo_Media108_1203x1168_sq_5.png" alt="108 Media. Performance. Marketing.">
                 <div>
                     <h1>VK Report Generator</h1>
                     <p class="subtitle">📊 Обработка и генерация отчетов</p>
@@ -50,7 +51,7 @@
                     </div>
 
                     <div class="form-group full-width">
-                        <label>💰 Коэффициенты</label>
+                        <label>💰 Множители</label>
                         <div class="multipliers-row">
                             <div>
                                 <label for="vk-vat" class="field-label">НДС</label>
@@ -89,7 +90,7 @@
                             <input type="file" id="vk-ads" accept=".xlsx,.xls,.csv">
                         </div>
                         <div class="help-hint" id="hint-ads">
-                            <strong>Порядок столбцов:</strong>
+                            <strong>Порядок столбцов (слева-направо):</strong>
                             <div class="col-list">
                                 <span class="col-item">Название</span>
                                 <span class="col-item">Расход</span>
@@ -114,7 +115,7 @@
                             <input type="file" id="vk-groups" accept=".xlsx,.xls,.csv">
                         </div>
                         <div class="help-hint" id="hint-groups">
-                            <strong>Порядок столбцов:</strong>
+                            <strong>Порядок столбцов (слева-направо):</strong>
                             <div class="col-list">
                                 <span class="col-item">Название группы</span>
                                 <span class="col-item">Расход</span>
@@ -139,7 +140,7 @@
                             <input type="file" id="vk-temp" accept=".xlsx,.xls,.csv" multiple>
                         </div>
                         <div class="help-hint" id="hint-leads">
-                            <strong>Порядок столбцов:</strong>
+                            <strong>Порядок столбцов (слева-направо):</strong>
                             <div class="col-list">
                                 <span class="col-item">ID Кампании</span>
                                 <span class="col-item">ID Группы</span>
@@ -192,10 +193,30 @@
                     </div>
                 </section>
 
+                <section class="output-settings" aria-label="Формат вывода отчета">
+                    <div class="settings-title">
+                        <span>📤 Куда сохранить отчёт</span>
+                    </div>
+                    <div class="output-format-row">
+                        <label class="output-format-option">
+                            <input type="radio" name="output-format" value="xlsx" id="output-xlsx" checked>
+                            <span>📄 Excel файл</span>
+                        </label>
+                        <label class="output-format-option">
+                            <input type="radio" name="output-format" value="gsheet" id="output-gsheet">
+                            <span>📊 Google Таблица</span>
+                        </label>
+                    </div>
+                    <div class="form-group gsheet-link-group" id="gsheet-link-group" hidden>
+                        <label for="gsheet-url">🔗 Ссылка или ID Google-таблицы</label>
+                        <input type="text" id="gsheet-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocomplete="off">
+                    </div>
+                </section>
+
                 <div class="actions-bar">
                     <div class="format-buttons" aria-label="Формат чисел">
-                        <button type="button" class="format-btn active" id="fmt-integer" data-format="integer">🔢 Целое</button>
-                        <button type="button" class="format-btn" id="fmt-decimal" data-format="decimal">💎 2 знака</button>
+                        <button type="button" class="format-btn active" id="fmt-integer" data-format="integer">🔢 Целое число: 999</button>
+                        <button type="button" class="format-btn" id="fmt-decimal" data-format="decimal">💎 Десятичное: 999,99</button>
                         <button type="button" class="format-btn danger" id="fmt-clear">🧹 Очистка</button>
                     </div>
                     <button type="submit" class="btn">✨ Создать отчет</button>
