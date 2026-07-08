@@ -10,9 +10,10 @@
 // 6. Скопировать "Client ID" (заканчивается на .apps.googleusercontent.com)
 //    и вставить его значением константы GOOGLE_CLIENT_ID ниже.
 // Client ID — это не секрет, его безопасно хранить прямо в коде фронтенда.
+// Значение вынесено в js/config.js (общее для входа на сайт и экспорта в Sheets).
 
-const GOOGLE_CLIENT_ID = '374654641527-uob0v52a95oe0ar9sfud3vai861l3r5t.apps.googleusercontent.com';
-const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
+import { GOOGLE_CLIENT_ID, GOOGLE_SHEETS_SCOPE as SHEETS_SCOPE } from './config.js';
+
 const TOKEN_SAFETY_MARGIN_MS = 60 * 1000;
 
 let tokenClient = null;
@@ -56,6 +57,14 @@ function requestNewAccessToken() {
 
         client.requestAccessToken({ prompt: '' });
     });
+}
+
+// Позволяет js/authGate.js переиспользовать токен, полученный при входе на сайт
+// (там запрашивается сразу и профиль, и доступ к Sheets — одним окном согласия),
+// чтобы при экспорте в Google Таблицу не показывался повторный запрос доступа.
+export function setCachedAccessToken(accessToken, expiresInSeconds) {
+    cachedAccessToken = accessToken;
+    cachedTokenExpiresAt = Date.now() + (Number(expiresInSeconds) || 3600) * 1000;
 }
 
 export async function ensureAccessToken() {

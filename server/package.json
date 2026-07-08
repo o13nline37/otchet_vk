@@ -1,0 +1,20 @@
+{
+    "name": "otchet-vk-server",
+    "version": "0.1.0",
+    "description": "Backend for VK Report Generator: Google sign-in and user accounts.",
+    "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "dev": "node --watch --env-file=.env src/index.js",
+        "start": "node src/index.js",
+        "db:init": "node --env-file=.env src/initdb.js"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "express": "^4.21.2",
+        "jsonwebtoken": "^9.0.2",
+        "pg": "^8.13.1"
+    }
+}

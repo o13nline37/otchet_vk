@@ -8,10 +8,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/authGate.js"></script>
 </head>
 <body>
-    <main class="app-shell">
+    <div id="auth-gate" class="auth-gate">
+        <div class="auth-gate-card">
+            <img class="auth-gate-mark" src="assets/logo_Media108_1203x1168_sq_5.png" alt="108 Media. Performance. Marketing.">
+            <h1 class="auth-gate-title">VK Report Generator</h1>
+            <p class="auth-gate-subtitle">Войдите через рабочий аккаунт Google 108 Media, чтобы продолжить.</p>
+            <button type="button" id="google-signin-button" class="auth-gate-button">
+                <svg class="auth-gate-button-icon" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"/>
+                    <path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"/>
+                </svg>
+                <span>Войти через Google</span>
+            </button>
+            <p id="auth-gate-status" class="auth-gate-status" role="status" aria-live="polite"></p>
+        </div>
+    </div>
+
+    <main class="app-shell" hidden>
         <header class="app-header">
             <div class="brand-block">
                 <img class="app-mark" src="assets/logo_Media108_1203x1168_sq_5.png" alt="108 Media. Performance. Marketing.">
@@ -19,6 +37,10 @@
                     <h1>VK Report Generator</h1>
                     <p class="subtitle">📊 Обработка и генерация отчетов</p>
                 </div>
+            </div>
+            <div class="header-auth">
+                <span id="auth-user-name" class="auth-user-name"></span>
+                <button type="button" id="auth-logout" class="auth-logout-btn">Выйти</button>
             </div>
         </header>
 

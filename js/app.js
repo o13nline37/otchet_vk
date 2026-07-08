@@ -4,6 +4,7 @@ import { processVKReport } from './reportProcessor.js';
 import { bindUiEvents, getSelectedFiles, getOutputFormat, getGoogleSheetInput, showNotification } from './ui.js';
 import { extractSpreadsheetId } from './googleAuth.js';
 import { exportReportToGoogleSheet } from './sheetsReportBuilder.js';
+import { applyStoredSettings, saveCurrentSettings } from './userSettings.js';
 
 function getTargetPhones() {
     const phonesText = document.getElementById('vk-phones').value;
@@ -84,6 +85,11 @@ async function handleSubmit(event) {
     try {
         if (!validateForm(config, adsFile, groupsFile, outputFormat, spreadsheetId)) return;
 
+        const excelStyleSettings = getExcelStyleSettings();
+        // Значения уже прошли валидацию — сохраняем их как настройки по умолчанию
+        // на будущее, не дожидаясь результата генерации отчёта.
+        saveCurrentSettings(config, excelStyleSettings, outputFormat);
+
         submitButton.disabled = true;
         submitButton.textContent = '⏳ Собираю отчет...';
 
@@ -97,13 +103,13 @@ async function handleSubmit(event) {
 
         if (outputFormat === 'gsheet') {
             showNotification('🔐 Ожидаю авторизацию Google...', 'info');
-            const sheetUrl = await exportReportToGoogleSheet(spreadsheetId, reportData, getExcelStyleSettings());
+            const sheetUrl = await exportReportToGoogleSheet(spreadsheetId, reportData, excelStyleSettings);
 
             showNotification('✅ Лист добавлен в Google-таблицу! ЦО=' + reportData.totalCO, 'success');
             window.open(sheetUrl, '_blank', 'noopener');
         } else {
             showNotification('✨ Генерация отчета...', 'info');
-            const excelData = await generateExcelReport(reportData, getExcelStyleSettings());
+            const excelData = await generateExcelReport(reportData, excelStyleSettings);
             const filename = config.period
                 ? `${config.title}_${config.period.replace(/\s/g, '_')}.xlsx`
                 : `${config.title}.xlsx`;
@@ -120,7 +126,12 @@ async function handleSubmit(event) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Инициализация приложения. Вызывается из js/authGate.js только после успешного входа,
+// поэтому здесь нет самозапуска на DOMContentLoaded.
+export function initApp() {
     bindUiEvents();
     document.getElementById('vk-form').addEventListener('submit', handleSubmit);
-});
+    // После bindUiEvents(), которая проставляет дефолты формы — иначе они перезапишут
+    // подставленные сохранённые значения.
+    applyStoredSettings();
+}
