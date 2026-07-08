@@ -1,9 +1,10 @@
 import { setNumberFormat } from './formatters.js';
+import { loadSavedSpreadsheets } from './savedSpreadsheets.js';
 
 const FILE_NOT_SELECTED_TEXT = 'Файл не выбран';
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 const PROJECTS_DATA_URL = 'data/projects.json';
-const MAX_PROJECT_SUGGESTIONS = 7;
+const MAX_SUGGESTIONS = 7;
 
 function toggleHint(button) {
     const element = document.getElementById(button.dataset.hintTarget);
@@ -96,34 +97,36 @@ function normalizeSearchText(value) {
         .trim();
 }
 
-function scoreProjectName(projectName, query) {
-    const normalizedName = normalizeSearchText(projectName);
+function scoreMatch(text, query) {
+    const normalizedText = normalizeSearchText(text);
     const normalizedQuery = normalizeSearchText(query);
     if (!normalizedQuery) return -1;
-    if (normalizedName === normalizedQuery) return 1000;
-    if (normalizedName.startsWith(normalizedQuery)) return 800 - normalizedName.length;
+    if (normalizedText === normalizedQuery) return 1000;
+    if (normalizedText.startsWith(normalizedQuery)) return 800 - normalizedText.length;
 
-    const wordStartIndex = normalizedName.indexOf(' ' + normalizedQuery);
+    const wordStartIndex = normalizedText.indexOf(' ' + normalizedQuery);
     if (wordStartIndex !== -1) return 650 - wordStartIndex;
 
-    const includesIndex = normalizedName.indexOf(normalizedQuery);
+    const includesIndex = normalizedText.indexOf(normalizedQuery);
     if (includesIndex !== -1) return 500 - includesIndex;
 
     let queryIndex = 0;
-    for (let i = 0; i < normalizedName.length && queryIndex < normalizedQuery.length; i++) {
-        if (normalizedName[i] === normalizedQuery[queryIndex]) queryIndex++;
+    for (let i = 0; i < normalizedText.length && queryIndex < normalizedQuery.length; i++) {
+        if (normalizedText[i] === normalizedQuery[queryIndex]) queryIndex++;
     }
 
-    return queryIndex === normalizedQuery.length ? 220 - normalizedName.length : -1;
+    return queryIndex === normalizedQuery.length ? 220 - normalizedText.length : -1;
 }
 
-function getProjectMatches(projects, query) {
-    return projects
-        .map((project) => ({ name: project, score: scoreProjectName(project, query) }))
-        .filter((project) => project.score >= 0)
-        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
-        .slice(0, MAX_PROJECT_SUGGESTIONS)
-        .map((project) => project.name);
+// getText достаёт из элемента списка ту строку, по которой ищем и которую показываем
+// (для проектов элемент — сама строка, для таблиц — объект {title, spreadsheetId}).
+function getMatches(items, query, getText) {
+    return items
+        .map((item) => ({ item, score: scoreMatch(getText(item), query) }))
+        .filter((entry) => entry.score >= 0)
+        .sort((a, b) => b.score - a.score || getText(a.item).localeCompare(getText(b.item), 'ru'))
+        .slice(0, MAX_SUGGESTIONS)
+        .map((entry) => entry.item);
 }
 
 function appendHighlightedText(element, text, query) {
@@ -157,12 +160,16 @@ async function loadProjectNames() {
     }
 }
 
-function bindProjectAutocomplete() {
-    const input = document.getElementById('vk-title');
-    const suggestions = document.getElementById('project-suggestions');
+// Общий движок автодополнения: поиск с подсветкой, клавиатурная навигация, клик
+// вне поля закрывает список. loadItems подгружает данные асинхронно (файл или API),
+// getText достаёт отображаемую/сравниваемую строку, onSelect решает, что подставить
+// в поле при выборе (для проектов — сама строка, для таблиц — их ID).
+function bindAutocomplete({ inputId, suggestionsId, loadItems, getText, onSelect }) {
+    const input = document.getElementById(inputId);
+    const suggestions = document.getElementById(suggestionsId);
     if (!input || !suggestions) return;
 
-    let projects = [];
+    let items = [];
     let visibleMatches = [];
     let activeIndex = -1;
 
@@ -174,15 +181,15 @@ function bindProjectAutocomplete() {
         visibleMatches = [];
     };
 
-    const selectProject = (projectName) => {
-        input.value = projectName;
+    const selectItem = (item) => {
+        onSelect(input, item);
         hideSuggestions();
         input.focus();
     };
 
     const renderSuggestions = () => {
         const query = input.value;
-        visibleMatches = getProjectMatches(projects, query);
+        visibleMatches = getMatches(items, query, getText);
         suggestions.replaceChildren();
 
         if (visibleMatches.length === 0) {
@@ -191,21 +198,21 @@ function bindProjectAutocomplete() {
         }
 
         activeIndex = 0;
-        visibleMatches.forEach((projectName, index) => {
-            const item = document.createElement('button');
-            item.type = 'button';
-            item.className = 'project-suggestion';
-            item.setAttribute('role', 'option');
-            item.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false');
+        visibleMatches.forEach((item, index) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'autocomplete-suggestion';
+            option.setAttribute('role', 'option');
+            option.setAttribute('aria-selected', index === activeIndex ? 'true' : 'false');
 
             const text = document.createElement('span');
-            text.className = 'project-suggestion-text';
-            appendHighlightedText(text, projectName, query);
-            item.appendChild(text);
+            text.className = 'autocomplete-suggestion-text';
+            appendHighlightedText(text, getText(item), query);
+            option.appendChild(text);
 
-            item.addEventListener('mousedown', (event) => event.preventDefault());
-            item.addEventListener('click', () => selectProject(projectName));
-            suggestions.appendChild(item);
+            option.addEventListener('mousedown', (event) => event.preventDefault());
+            option.addEventListener('click', () => selectItem(item));
+            suggestions.appendChild(option);
         });
 
         suggestions.classList.add('visible');
@@ -214,11 +221,11 @@ function bindProjectAutocomplete() {
     };
 
     const updateActiveSuggestion = () => {
-        Array.from(suggestions.children).forEach((item, index) => {
+        Array.from(suggestions.children).forEach((option, index) => {
             const isActive = index === activeIndex;
-            item.classList.toggle('is-active', isActive);
-            item.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            if (isActive) item.scrollIntoView({ block: 'nearest' });
+            option.classList.toggle('is-active', isActive);
+            option.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            if (isActive) option.scrollIntoView({ block: 'nearest' });
         });
     };
 
@@ -243,7 +250,7 @@ function bindProjectAutocomplete() {
 
         if (event.key === 'Enter' && activeIndex >= 0) {
             event.preventDefault();
-            selectProject(visibleMatches[activeIndex]);
+            selectItem(visibleMatches[activeIndex]);
         }
 
         if (event.key === 'Escape') {
@@ -252,11 +259,33 @@ function bindProjectAutocomplete() {
     });
 
     document.addEventListener('click', (event) => {
-        if (!input.closest('.project-autocomplete')?.contains(event.target)) hideSuggestions();
+        if (!input.closest('.autocomplete-field')?.contains(event.target)) hideSuggestions();
     });
 
-    loadProjectNames().then((loadedProjects) => {
-        projects = loadedProjects;
+    loadItems().then((loadedItems) => {
+        items = loadedItems;
+    });
+}
+
+function bindProjectAutocomplete() {
+    bindAutocomplete({
+        inputId: 'vk-title',
+        suggestionsId: 'project-suggestions',
+        loadItems: loadProjectNames,
+        getText: (name) => name,
+        onSelect: (input, name) => { input.value = name; },
+    });
+}
+
+function bindSpreadsheetAutocomplete() {
+    bindAutocomplete({
+        inputId: 'gsheet-url',
+        suggestionsId: 'spreadsheet-suggestions',
+        loadItems: loadSavedSpreadsheets,
+        getText: (spreadsheet) => spreadsheet.title || spreadsheet.spreadsheetId,
+        onSelect: (input, spreadsheet) => {
+            input.value = `https://docs.google.com/spreadsheets/d/${spreadsheet.spreadsheetId}/edit`;
+        },
     });
 }
 
@@ -283,6 +312,8 @@ function clearForm() {
 
     document.getElementById('project-suggestions')?.classList.remove('visible');
     document.getElementById('project-suggestions')?.replaceChildren();
+    document.getElementById('spreadsheet-suggestions')?.classList.remove('visible');
+    document.getElementById('spreadsheet-suggestions')?.replaceChildren();
     document.querySelectorAll('.help-hint').forEach((hint) => hint.classList.remove('visible'));
     document.querySelectorAll('.help-btn').forEach((button) => button.classList.remove('is-open'));
     setFormat('integer');
@@ -390,6 +421,7 @@ export function bindUiEvents() {
     document.getElementById('fmt-clear').addEventListener('click', clearForm);
 
     bindProjectAutocomplete();
+    bindSpreadsheetAutocomplete();
     bindFilePicker('vk-ads', 'ads-name');
     bindFilePicker('vk-groups', 'groups-name');
     bindFilePicker('vk-temp', 'temp-name');

@@ -1,6 +1,7 @@
 import { getRubFormat } from './formatters.js';
 import { normalizeExcelStyleSettings } from './excelGenerator.js';
 import { ensureAccessToken } from './googleAuth.js';
+import { rememberSpreadsheet } from './savedSpreadsheets.js';
 
 // Google Sheets парсит формулы, записанные через API, в синтаксисе локали самой
 // таблицы: для ru-локали нужны русские имена функций (ЕСЛИОШИБКА вместо IFERROR)
@@ -320,15 +321,20 @@ function buildReportGrid(data, excelStyleSettings, locale) {
     return grid;
 }
 
-async function fetchSpreadsheetLocale(accessToken, spreadsheetId) {
-    const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}?fields=properties.locale`, {
+// Название таблицы запрашивается тем же вызовом, что и локаль — лишнего похода
+// к Google не требуется, только заодно тянем поле properties.title.
+async function fetchSpreadsheetMeta(accessToken, spreadsheetId) {
+    const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}?fields=properties.locale,properties.title`, {
         headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!response.ok) return '';
+    if (!response.ok) return { locale: '', title: '' };
 
     const body = await response.json().catch(() => null);
-    return body?.properties?.locale || '';
+    return {
+        locale: body?.properties?.locale || '',
+        title: body?.properties?.title || '',
+    };
 }
 
 function gridToRequests(grid, sheetId) {
@@ -402,7 +408,7 @@ function buildSheetTitle(data) {
 
 export async function exportReportToGoogleSheet(spreadsheetId, data, excelStyleSettings) {
     const accessToken = await ensureAccessToken();
-    const locale = await fetchSpreadsheetLocale(accessToken, spreadsheetId);
+    const { locale, title: spreadsheetTitle } = await fetchSpreadsheetMeta(accessToken, spreadsheetId);
     const grid = buildReportGrid(data, excelStyleSettings, locale);
     const sheetId = Math.floor(Math.random() * 900000000) + 100000000;
     const title = buildSheetTitle(data);
@@ -413,6 +419,10 @@ export async function exportReportToGoogleSheet(spreadsheetId, data, excelStyleS
     ];
 
     await sheetsBatchUpdate(accessToken, spreadsheetId, requests);
+
+    // Не блокирует уже готовый результат — таблица запоминается для автодополнения
+    // в фоне, ошибка сохранения не должна выглядеть как ошибка экспорта.
+    rememberSpreadsheet(spreadsheetId, spreadsheetTitle);
 
     return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
 }

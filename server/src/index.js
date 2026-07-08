@@ -4,6 +4,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import { authRouter } from './auth/routes.js';
 import { settingsRouter } from './settings/routes.js';
+import { spreadsheetsRouter } from './spreadsheets/routes.js';
 
 const app = express();
 
@@ -32,6 +33,9 @@ app.use('/api/auth', authRouter);
 
 // Личные настройки пользователя.
 app.use('/api/settings', settingsRouter);
+
+// Сохранённые Google-таблицы пользователя.
+app.use('/api/spreadsheets', spreadsheetsRouter);
 
 // Единый обработчик ошибок (в т.ч. отказ CORS выше).
 // eslint-disable-next-line no-unused-vars

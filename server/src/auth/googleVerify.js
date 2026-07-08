@@ -7,6 +7,14 @@ import { config } from '../config.js';
 
 const TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
+// Без тайм-аута зависший запрос к Google держал бы наш ответ клиенту открытым бесконечно.
+const GOOGLE_FETCH_TIMEOUT_MS = 10000;
+
+function fetchWithTimeout(url, options = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GOOGLE_FETCH_TIMEOUT_MS);
+    return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+}
 
 export async function verifyGoogleAccessToken(accessToken) {
     if (!accessToken || typeof accessToken !== 'string') {
@@ -15,7 +23,7 @@ export async function verifyGoogleAccessToken(accessToken) {
 
     let tokenInfo;
     try {
-        const tokenInfoResponse = await fetch(`${TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`);
+        const tokenInfoResponse = await fetchWithTimeout(`${TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`);
         if (!tokenInfoResponse.ok) throw new Error('bad tokeninfo response');
         tokenInfo = await tokenInfoResponse.json();
     } catch {
@@ -30,7 +38,7 @@ export async function verifyGoogleAccessToken(accessToken) {
 
     let profile;
     try {
-        const userInfoResponse = await fetch(USERINFO_URL, {
+        const userInfoResponse = await fetchWithTimeout(USERINFO_URL, {
             headers: { Authorization: `Bearer ${accessToken}` },
         });
         if (!userInfoResponse.ok) throw new Error('bad userinfo response');

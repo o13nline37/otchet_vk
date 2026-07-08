@@ -49,7 +49,7 @@
                 <div class="form-grid">
                     <div class="form-group full-width">
                         <label for="vk-title">📌 Название проекта</label>
-                        <div class="project-autocomplete">
+                        <div class="autocomplete-field">
                             <input
                                 type="text"
                                 id="vk-title"
@@ -59,7 +59,7 @@
                                 aria-expanded="false"
                                 aria-controls="project-suggestions"
                             >
-                            <div class="project-suggestions" id="project-suggestions" role="listbox"></div>
+                            <div class="autocomplete-suggestions" id="project-suggestions" role="listbox"></div>
                         </div>
                     </div>
 
@@ -231,7 +231,18 @@
                     </div>
                     <div class="form-group gsheet-link-group" id="gsheet-link-group" hidden>
                         <label for="gsheet-url">🔗 Ссылка или ID Google-таблицы</label>
-                        <input type="text" id="gsheet-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" autocomplete="off">
+                        <div class="autocomplete-field">
+                            <input
+                                type="text"
+                                id="gsheet-url"
+                                placeholder="https://docs.google.com/spreadsheets/d/…/edit"
+                                autocomplete="off"
+                                aria-autocomplete="list"
+                                aria-expanded="false"
+                                aria-controls="spreadsheet-suggestions"
+                            >
+                            <div class="autocomplete-suggestions" id="spreadsheet-suggestions" role="listbox"></div>
+                        </div>
                     </div>
                 </section>
 

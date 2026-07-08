@@ -183,11 +183,11 @@ h1 {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-.project-autocomplete {
+.autocomplete-field {
     position: relative;
 }
 
-.project-suggestions {
+.autocomplete-suggestions {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
@@ -203,21 +203,21 @@ h1 {
     scrollbar-width: thin;
 }
 
-.project-suggestions::-webkit-scrollbar {
+.autocomplete-suggestions::-webkit-scrollbar {
     width: 6px;
 }
 
-.project-suggestions::-webkit-scrollbar-thumb {
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(154, 180, 220, 0.6);
 }
 
-.project-suggestions.visible {
+.autocomplete-suggestions.visible {
     display: block;
     animation: hintIn 0.16s ease;
 }
 
-.project-suggestion {
+.autocomplete-suggestion {
     width: 100%;
     min-height: 42px;
     border: 0;
@@ -234,28 +234,28 @@ h1 {
     font-weight: 700;
 }
 
-.project-suggestion:last-child {
+.autocomplete-suggestion:last-child {
     border-bottom: 0;
 }
 
-.project-suggestion::before {
+.autocomplete-suggestion::before {
     content: "🔎";
     flex: 0 0 auto;
     font-size: 14px;
 }
 
-.project-suggestion-text {
+.autocomplete-suggestion-text {
     min-width: 0;
     overflow-wrap: anywhere;
 }
 
-.project-suggestion:hover,
-.project-suggestion.is-active {
+.autocomplete-suggestion:hover,
+.autocomplete-suggestion.is-active {
     background: #edf4ff;
     color: var(--primary-dark);
 }
 
-.project-suggestion mark {
+.autocomplete-suggestion mark {
     padding: 0;
     background: transparent;
     color: var(--teal);

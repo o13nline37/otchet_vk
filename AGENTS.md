@@ -10,6 +10,8 @@ This is a static browser app for generating VK report `.xlsx` files, plus a smal
 - `js/apiClient.js` holds the session token (`localStorage`) and `authFetch()`, a `fetch` wrapper that prefixes `API_BASE_URL` and attaches the `Authorization` header. Shared by `js/authGate.js` and `js/userSettings.js` — don't duplicate token handling elsewhere.
 - `js/config.js` holds shared frontend config: `GOOGLE_CLIENT_ID`, `GOOGLE_SHEETS_SCOPE` (both used by login and Sheets export), and `API_BASE_URL` (backend address, auto-detected for localhost vs prod).
 - `js/userSettings.js` loads the signed-in user's saved form preferences (VAT/AK multipliers, Excel style, number/output format) into the form on start, and saves them back after a valid submit — so the form remembers each person's last-used values.
+- `js/savedSpreadsheets.js` loads/remembers the signed-in user's own list of previously used Google Sheets (per-user, not shared) — `js/sheetsReportBuilder.js` calls `rememberSpreadsheet()` after a successful export, capturing the spreadsheet title via the same Sheets API call already used for locale detection.
+- `js/ui.js`'s `bindAutocomplete()` is a generic autocomplete engine (search/highlight/keyboard nav) shared by the project-name field and the Google Sheet link field — `bindProjectAutocomplete()` and `bindSpreadsheetAutocomplete()` are thin configs over it. Shared markup/CSS class is `.autocomplete-field` / `.autocomplete-suggestions` / `.autocomplete-suggestion`.
 - `js/app.js` exports `initApp()`: form handling, validation, file flow, and report generation orchestration. It no longer self-starts — `authGate.js` calls `initApp()` after a successful login.
 - `js/ui.js` manages DOM-only behavior such as notifications, file labels, hints, and reset state.
 - `js/reportProcessor.js` contains report business logic and aggregation.
@@ -22,9 +24,10 @@ The backend lives under `server/` (Express, ES modules, no build step). See `ser
 
 - `server/src/index.js` assembles the Express app (CORS, routes, health check).
 - `server/src/config.js` reads and validates environment variables from `server/.env`.
-- `server/src/db.js` holds the `pg` pool and queries for `users` and `user_settings`; `server/db/schema.sql` is the table definitions; `server/src/initdb.js` applies it (`npm run db:init`).
+- `server/src/db.js` holds the `pg` pool and queries for `users`, `user_settings`, and `saved_spreadsheets`; `server/db/schema.sql` is the table definitions; `server/src/initdb.js` applies it (`npm run db:init`).
 - `server/src/auth/` contains `googleVerify.js` (verifies the Google access token via Google's `tokeninfo`/`userinfo` endpoints — checks audience and pulls the profile), `allowlist.js` (108 Media whitelist by domain/email), `jwt.js` (issues/verifies our own session JWT), and `routes.js` (`POST /api/auth/google`, `GET /api/auth/me`, `POST /api/auth/logout`).
 - `server/src/settings/` contains `validate.js` (defaults + clamping/whitelisting incoming values) and `routes.js` (`GET`/`PUT /api/settings`, both behind `requireAuth`) — one row per user in `user_settings`.
+- `server/src/spreadsheets/routes.js` — `GET`/`POST /api/spreadsheets` (behind `requireAuth`), a per-user list of previously used Google Sheets in `saved_spreadsheets` (unique per `user_id` + `spreadsheet_id`, upserted on repeat use). Deliberately per-user, not shared across the team.
 - `server/src/middleware/requireAuth.js` guards protected routes (settings, and any future ones) with the session JWT.
 
 ## Build, Test, and Development Commands

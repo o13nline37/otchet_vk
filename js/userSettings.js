@@ -72,5 +72,9 @@ export function saveCurrentSettings(reportConfig, excelStyleSettings, outputForm
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        // Запрос не блокирует генерацию отчёта (fire-and-forget), а keepalive не даёт
+        // браузеру оборвать его, если пользователь успеет обновить страницу раньше,
+        // чем придёт ответ — иначе новые значения не долетали бы до сервера.
+        keepalive: true,
     }).catch(() => {});
 }

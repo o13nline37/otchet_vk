@@ -10,7 +10,7 @@
 //   5. Бэкенд возвращает наш сессионный токен -> сохраняем и запускаем приложение.
 //   6. Этот же access token кладём в кэш js/googleAuth.js, поэтому при экспорте
 //      в Google Таблицу повторный запрос доступа уже не показывается.
-import { API_BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_SHEETS_SCOPE } from './config.js';
+import { GOOGLE_CLIENT_ID, GOOGLE_SHEETS_SCOPE } from './config.js';
 import { getStoredToken, storeToken, clearToken, authFetch } from './apiClient.js';
 import { setCachedAccessToken } from './googleAuth.js';
 import { initApp } from './app.js';
@@ -83,7 +83,7 @@ async function fetchCurrentUser() {
 }
 
 async function exchangeGoogleAccessToken(accessToken) {
-    const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
+    const response = await authFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken }),

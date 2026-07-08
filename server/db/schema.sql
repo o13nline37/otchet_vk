@@ -31,3 +31,17 @@ CREATE TABLE IF NOT EXISTS user_settings (
     output_format    TEXT         NOT NULL DEFAULT 'xlsx',
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+-- Google-таблицы, в которые пользователь успешно выгружал отчёты — личный список
+-- (не общий), подставляется в автодополнение поля ссылки на таблицу.
+CREATE TABLE IF NOT EXISTS saved_spreadsheets (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id        BIGINT      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    spreadsheet_id TEXT        NOT NULL,
+    title          TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, spreadsheet_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_spreadsheets_user ON saved_spreadsheets (user_id, last_used_at DESC);

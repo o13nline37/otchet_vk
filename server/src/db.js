@@ -8,6 +8,10 @@ export const pool = new Pool({
     connectionString: config.databaseUrl,
     // Облачные провайдеры (Neon/Supabase/Heroku) требуют SSL; локальный Postgres — обычно нет.
     ssl: config.databaseSsl ? { rejectUnauthorized: false } : false,
+    // Без тайм-аутов зависшее подключение к БД (например, Neon не отвечает) держало бы
+    // HTTP-запрос открытым бесконечно — фронтенд увидит это как вечное "Проверяем доступ…".
+    connectionTimeoutMillis: 10000,
+    statement_timeout: 10000,
 });
 
 pool.on('error', (error) => {
@@ -99,4 +103,39 @@ export async function upsertUserSettings(userId, settings) {
     ];
     const { rows } = await pool.query(query, values);
     return toSettingsResponse(rows[0]);
+}
+
+function toSpreadsheetResponse(row) {
+    return {
+        spreadsheetId: row.spreadsheet_id,
+        title: row.title,
+        lastUsedAt: row.last_used_at,
+    };
+}
+
+// Список Google-таблиц пользователя, недавно использованные — первыми.
+export async function listSavedSpreadsheets(userId) {
+    const query = `
+        SELECT spreadsheet_id, title, last_used_at
+        FROM saved_spreadsheets
+        WHERE user_id = $1
+        ORDER BY last_used_at DESC
+        LIMIT 20;
+    `;
+    const { rows } = await pool.query(query, [userId]);
+    return rows.map(toSpreadsheetResponse);
+}
+
+// Запоминает таблицу или обновляет её название/время использования, если уже сохранена.
+export async function upsertSavedSpreadsheet(userId, { spreadsheetId, title }) {
+    const query = `
+        INSERT INTO saved_spreadsheets (user_id, spreadsheet_id, title, last_used_at)
+        VALUES ($1, $2, $3, now())
+        ON CONFLICT (user_id, spreadsheet_id) DO UPDATE
+            SET title        = EXCLUDED.title,
+                last_used_at = now()
+        RETURNING spreadsheet_id, title, last_used_at;
+    `;
+    const { rows } = await pool.query(query, [userId, spreadsheetId, title || null]);
+    return toSpreadsheetResponse(rows[0]);
 }
