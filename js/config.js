@@ -10,7 +10,7 @@ export const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets
 
 // Адрес бэкенда. Локально фронт открывается через http.server на :8000, бэкенд слушает :3000.
 // В проде (GitHub Pages) укажите URL развёрнутого бэкенда.
-const PROD_API_BASE_URL = ''; // TODO: URL развёрнутого бэкенда, например 'https://otchet-vk-api.onrender.com'
+const PROD_API_BASE_URL = 'https://otchet-vk.onrender.com';
 
 function resolveApiBaseUrl() {
     const host = window.location.hostname;
