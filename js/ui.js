@@ -164,7 +164,11 @@ async function loadProjectNames() {
 // вне поля закрывает список. loadItems подгружает данные асинхронно (файл или API),
 // getText достаёт отображаемую/сравниваемую строку, onSelect решает, что подставить
 // в поле при выборе (для проектов — сама строка, для таблиц — их ID).
-function bindAutocomplete({ inputId, suggestionsId, loadItems, getText, onSelect }) {
+// showAllOnEmpty — показывать весь список при фокусе на пустое поле (режим "выбрать
+// из недавних"), иначе подсказки появляются только при начале ввода (режим поиска).
+// refreshOnFocus — перезапрашивать loadItems при каждом фокусе, а не один раз при
+// загрузке страницы — нужно, если список может пополниться в течение той же сессии.
+function bindAutocomplete({ inputId, suggestionsId, loadItems, getText, onSelect, showAllOnEmpty = false, refreshOnFocus = false }) {
     const input = document.getElementById(inputId);
     const suggestions = document.getElementById(suggestionsId);
     if (!input || !suggestions) return;
@@ -189,7 +193,9 @@ function bindAutocomplete({ inputId, suggestionsId, loadItems, getText, onSelect
 
     const renderSuggestions = () => {
         const query = input.value;
-        visibleMatches = getMatches(items, query, getText);
+        visibleMatches = query.trim()
+            ? getMatches(items, query, getText)
+            : (showAllOnEmpty ? items.slice(0, MAX_SUGGESTIONS) : []);
         suggestions.replaceChildren();
 
         if (visibleMatches.length === 0) {
@@ -231,7 +237,15 @@ function bindAutocomplete({ inputId, suggestionsId, loadItems, getText, onSelect
 
     input.addEventListener('input', renderSuggestions);
     input.addEventListener('focus', () => {
-        if (input.value.trim()) renderSuggestions();
+        if (refreshOnFocus) {
+            loadItems().then((loadedItems) => {
+                items = loadedItems;
+                renderSuggestions();
+            });
+            return;
+        }
+
+        if (input.value.trim() || showAllOnEmpty) renderSuggestions();
     });
     input.addEventListener('keydown', (event) => {
         if (!suggestions.classList.contains('visible')) return;
@@ -286,6 +300,8 @@ function bindSpreadsheetAutocomplete() {
         onSelect: (input, spreadsheet) => {
             input.value = `https://docs.google.com/spreadsheets/d/${spreadsheet.spreadsheetId}/edit`;
         },
+        showAllOnEmpty: true,
+        refreshOnFocus: true,
     });
 }
 
