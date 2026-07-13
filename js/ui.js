@@ -11,17 +11,51 @@ import {
 const PROJECTS_DATA_URL = 'data/projects.json';
 const MAX_SUGGESTIONS = 7;
 const VK_FILE_TYPE_META = {
-    ads: { label: 'Объявления', name: 'объявления', genitive: 'объявлений', icon: '📣' },
-    groups: { label: 'Группы', name: 'группы', genitive: 'групп', icon: '👥' },
+    ads: {
+        label: 'Объявления', name: 'объявления', genitive: 'объявлений', icon: '📣',
+        columns: ['Название', 'Расход', 'Показы', 'Клики', 'CTR', 'Результат', 'ID объявления', 'ID группы'],
+    },
+    groups: {
+        label: 'Группы', name: 'группы', genitive: 'групп', icon: '👥',
+        columns: ['Название группы', 'Расход', 'Показы', 'Клики', 'CTR', 'Результат', 'ID группы'],
+    },
     leads: { label: 'Лиды', name: 'лиды', genitive: 'лидов', icon: '☎️' },
 };
 
-function toggleHint(button) {
-    const element = document.getElementById(button.dataset.hintTarget);
-    if (!element) return;
+function closeAllColumnHelpPopovers() {
+    document.querySelectorAll('.column-help-popover').forEach((popover) => {
+        popover.hidden = true;
+    });
+    document.querySelectorAll('.column-help-button').forEach((button) => {
+        button.setAttribute('aria-expanded', 'false');
+    });
+}
 
-    element.classList.toggle('visible');
-    button.classList.toggle('is-open', element.classList.contains('visible'));
+function toggleColumnHelpPopover(button) {
+    const popover = button.closest('.column-help')?.querySelector('.column-help-popover');
+    if (!popover) return;
+
+    const isOpen = !popover.hidden;
+    closeAllColumnHelpPopovers();
+    if (!isOpen) {
+        popover.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function bindColumnHelpPopovers() {
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.column-help-button');
+        if (button) {
+            toggleColumnHelpPopover(button);
+            return;
+        }
+        if (!event.target.closest('.column-help')) closeAllColumnHelpPopovers();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeAllColumnHelpPopovers();
+    });
 }
 
 function setFormat(format) {
@@ -269,8 +303,7 @@ function clearForm() {
     document.getElementById('project-suggestions')?.replaceChildren();
     document.getElementById('spreadsheet-suggestions')?.classList.remove('visible');
     document.getElementById('spreadsheet-suggestions')?.replaceChildren();
-    document.querySelectorAll('.help-hint').forEach((hint) => hint.classList.remove('visible'));
-    document.querySelectorAll('.help-btn').forEach((button) => button.classList.remove('is-open'));
+    closeAllColumnHelpPopovers();
     setFormat('integer');
     showNotification('🧹 Данные очищены', 'info');
 }
@@ -335,6 +368,42 @@ function createUnknownFileItem(entry) {
     return item;
 }
 
+function createColumnHelp(type, meta) {
+    const help = document.createElement('div');
+    help.className = 'column-help';
+
+    const popoverId = `column-help-popover-${type}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'column-help-button';
+    button.setAttribute('aria-label', `Показать порядок столбцов для ${meta.name}`);
+    button.setAttribute('aria-controls', popoverId);
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = '?';
+
+    const popover = document.createElement('div');
+    popover.className = 'column-help-popover';
+    popover.id = popoverId;
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', `Порядок столбцов для ${meta.name}`);
+    popover.hidden = true;
+
+    const heading = document.createElement('strong');
+    heading.textContent = 'Порядок столбцов (слева-направо):';
+    const list = document.createElement('div');
+    list.className = 'column-help-list';
+    meta.columns.forEach((column) => {
+        const item = document.createElement('span');
+        item.className = 'column-help-item';
+        item.textContent = column;
+        list.appendChild(item);
+    });
+
+    popover.append(heading, list);
+    help.append(button, popover);
+    return help;
+}
+
 export function renderVKUploadState() {
     const state = getVKUploadState();
     const statusList = document.getElementById('vk-upload-status-list');
@@ -354,8 +423,12 @@ export function renderVKUploadState() {
         const heading = document.createElement('div');
         heading.className = 'vk-upload-status-heading';
 
-        const title = document.createElement('strong');
-        title.textContent = `${meta.icon} ${meta.label}`;
+        const title = document.createElement('div');
+        title.className = 'upload-type-heading';
+        const titleText = document.createElement('strong');
+        titleText.textContent = `${meta.icon} ${meta.label}`;
+        title.appendChild(titleText);
+        if (meta.columns) title.appendChild(createColumnHelp(type, meta));
         const count = document.createElement('span');
         count.textContent = files.length > 0
             ? (type === 'leads' ? `${files.length} файл(а)` : 'Файл распознан')
@@ -532,10 +605,6 @@ export function showNotification(message, type = 'info') {
 }
 
 export function bindUiEvents() {
-    document.querySelectorAll('[data-hint-target]').forEach((button) => {
-        button.addEventListener('click', () => toggleHint(button));
-    });
-
     document.querySelectorAll('[data-format]').forEach((button) => {
         button.addEventListener('click', () => setFormat(button.dataset.format));
     });
@@ -545,6 +614,7 @@ export function bindUiEvents() {
     bindProjectAutocomplete();
     bindSpreadsheetAutocomplete();
     bindVKFilePicker();
+    bindColumnHelpPopovers();
     bindOutputFormatToggle();
     setFormat('integer');
 }
