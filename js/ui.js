@@ -1,10 +1,20 @@
 import { setNumberFormat } from './formatters.js';
 import { loadSavedSpreadsheets } from './savedSpreadsheets.js';
+import {
+    addVKFiles,
+    getVKFileKey,
+    getVKUploadState,
+    removeVKFile as removeStoredVKFile,
+    resetVKUploadState as resetStoredVKUploadState,
+} from './vkFileStore.js';
 
-const FILE_NOT_SELECTED_TEXT = 'Файл не выбран';
-const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 const PROJECTS_DATA_URL = 'data/projects.json';
 const MAX_SUGGESTIONS = 7;
+const VK_FILE_TYPE_META = {
+    ads: { label: 'Объявления', name: 'объявления', genitive: 'объявлений', icon: '📣' },
+    groups: { label: 'Группы', name: 'группы', genitive: 'групп', icon: '👥' },
+    leads: { label: 'Лиды', name: 'лиды', genitive: 'лидов', icon: '☎️' },
+};
 
 function toggleHint(button) {
     const element = document.getElementById(button.dataset.hintTarget);
@@ -18,75 +28,6 @@ function setFormat(format) {
     setNumberFormat(format);
     document.getElementById('fmt-integer').classList.toggle('active', format === 'integer');
     document.getElementById('fmt-decimal').classList.toggle('active', format === 'decimal');
-}
-
-function renderFileNames(label, files) {
-    label.replaceChildren();
-
-    if (files.length === 0) {
-        label.textContent = FILE_NOT_SELECTED_TEXT;
-        return;
-    }
-
-    files.forEach((file) => {
-        const item = document.createElement('span');
-        item.className = 'file-name-item';
-        item.textContent = `✅ ${file.name}`;
-        item.title = file.name;
-        label.appendChild(item);
-    });
-}
-
-function resetUploadState(inputId, labelId) {
-    const input = document.getElementById(inputId);
-    const label = document.getElementById(labelId);
-    const uploadItem = input.closest('.upload-item');
-
-    input._selectedFiles = [];
-    input.value = '';
-    renderFileNames(label, []);
-    uploadItem?.classList.remove('has-file');
-}
-
-function isAcceptedFile(file) {
-    const name = file.name.toLowerCase();
-    return ACCEPTED_EXTENSIONS.some((extension) => name.endsWith(extension));
-}
-
-function getDroppedFiles(dataTransfer, allowMultiple) {
-    const files = Array.from(dataTransfer.files || []).filter(isAcceptedFile);
-    return allowMultiple ? files : files.slice(0, 1);
-}
-
-function getFileKey(file) {
-    return `${file.name}::${file.size}::${file.lastModified}`;
-}
-
-function mergeFiles(currentFiles, newFiles, allowMultiple) {
-    if (!allowMultiple) return newFiles.slice(0, 1);
-
-    const knownFiles = new Set(currentFiles.map(getFileKey));
-    const mergedFiles = currentFiles.slice();
-
-    newFiles.forEach((file) => {
-        const key = getFileKey(file);
-        if (!knownFiles.has(key)) {
-            knownFiles.add(key);
-            mergedFiles.push(file);
-        }
-    });
-
-    return mergedFiles;
-}
-
-function syncInputFiles(input, files, shouldDispatchChange = false) {
-    const transfer = new DataTransfer();
-    files.forEach((file) => transfer.items.add(file));
-    input.files = transfer.files;
-
-    if (shouldDispatchChange) {
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
 }
 
 function normalizeSearchText(value) {
@@ -322,9 +263,7 @@ function clearForm() {
     document.getElementById('gsheet-url').value = '';
     document.getElementById('gsheet-link-group').hidden = true;
 
-    resetUploadState('vk-ads', 'ads-name');
-    resetUploadState('vk-groups', 'groups-name');
-    resetUploadState('vk-temp', 'temp-name');
+    resetVKUploadState();
 
     document.getElementById('project-suggestions')?.classList.remove('visible');
     document.getElementById('project-suggestions')?.replaceChildren();
@@ -336,55 +275,229 @@ function clearForm() {
     showNotification('🧹 Данные очищены', 'info');
 }
 
-function bindFilePicker(inputId, labelId) {
-    const input = document.getElementById(inputId);
-    const label = document.getElementById(labelId);
-    const wrapper = input.closest('.file-input-wrapper');
-    const uploadItem = input.closest('.upload-item');
-    input._selectedFiles = [];
+function formatRussianList(items) {
+    if (items.length < 2) return items[0] || '';
+    return `${items.slice(0, -1).join(', ')} и ${items.at(-1)}`;
+}
 
-    wrapper.addEventListener('click', (event) => {
+function createRemoveFileButton(type, file) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'vk-upload-remove';
+    button.dataset.vkRemoveType = type;
+    button.dataset.vkFileKey = getVKFileKey(file);
+    button.setAttribute('aria-label', `Удалить файл ${file.name}`);
+    button.title = `Удалить ${file.name}`;
+    button.textContent = 'Удалить';
+    return button;
+}
+
+function createRecognizedFileItem(type, file) {
+    const item = document.createElement('div');
+    item.className = 'vk-upload-file';
+
+    const status = document.createElement('span');
+    status.className = 'vk-upload-file-check';
+    status.textContent = '✅';
+    status.setAttribute('aria-label', 'Файл распознан');
+
+    const name = document.createElement('span');
+    name.className = 'vk-upload-file-name';
+    name.textContent = file.name;
+    name.title = file.name;
+
+    item.append(status, name, createRemoveFileButton(type, file));
+    return item;
+}
+
+function getUnknownFileMessage(entry) {
+    if (entry.reason === 'ambiguous') {
+        const types = entry.matches.map((type) => VK_FILE_TYPE_META[type].genitive);
+        return `Файл одновременно похож на выгрузку ${formatRussianList(types)}`;
+    }
+    return 'Не удалось определить тип файла';
+}
+
+function createUnknownFileItem(entry) {
+    const item = document.createElement('div');
+    item.className = 'vk-upload-file vk-upload-file--unknown';
+
+    const name = document.createElement('span');
+    name.className = 'vk-upload-file-name';
+    name.textContent = entry.file.name;
+    name.title = entry.file.name;
+
+    const reason = document.createElement('span');
+    reason.className = 'vk-upload-file-reason';
+    reason.textContent = getUnknownFileMessage(entry);
+
+    item.append(name, reason, createRemoveFileButton('unknown', entry.file));
+    return item;
+}
+
+export function renderVKUploadState() {
+    const state = getVKUploadState();
+    const statusList = document.getElementById('vk-upload-status-list');
+    const unknownBox = document.getElementById('vk-upload-unknown');
+    const unknownList = document.getElementById('vk-upload-unknown-list');
+    const uploadBox = document.getElementById('vk-upload-box');
+    const progress = document.getElementById('vk-upload-progress');
+    const complete = document.getElementById('vk-upload-complete');
+    if (!statusList || !unknownBox || !unknownList || !uploadBox || !progress || !complete) return;
+
+    statusList.replaceChildren();
+    Object.entries(VK_FILE_TYPE_META).forEach(([type, meta]) => {
+        const files = type === 'leads' ? state.leads : (state[type] ? [state[type]] : []);
+        const row = document.createElement('section');
+        row.className = `vk-upload-status vk-upload-status--${type} ${files.length > 0 ? 'is-loaded' : 'is-empty'}`;
+
+        const heading = document.createElement('div');
+        heading.className = 'vk-upload-status-heading';
+
+        const title = document.createElement('strong');
+        title.textContent = `${meta.icon} ${meta.label}`;
+        const count = document.createElement('span');
+        count.textContent = files.length > 0
+            ? (type === 'leads' ? `${files.length} файл(а)` : 'Файл распознан')
+            : 'Файл не загружен';
+        heading.append(title, count);
+        row.appendChild(heading);
+
+        if (files.length > 0) {
+            const fileList = document.createElement('div');
+            fileList.className = 'vk-upload-files';
+            files.forEach((file) => fileList.appendChild(createRecognizedFileItem(type, file)));
+            row.appendChild(fileList);
+        }
+
+        statusList.appendChild(row);
+    });
+
+    unknownList.replaceChildren(...state.unknown.map(createUnknownFileItem));
+    unknownBox.hidden = state.unknown.length === 0;
+
+    const loadedTypeCount = Number(Boolean(state.ads)) + Number(Boolean(state.groups)) + Number(state.leads.length > 0);
+    const allRequiredFilesLoaded = loadedTypeCount === 3;
+    progress.textContent = `Загружено ${loadedTypeCount} из 3 типов выгрузок`;
+    progress.classList.toggle('is-complete', allRequiredFilesLoaded);
+    complete.hidden = !allRequiredFilesLoaded;
+    uploadBox.classList.toggle('has-files', loadedTypeCount > 0);
+    uploadBox.classList.toggle('has-errors', state.unknown.length > 0);
+}
+
+function getIssueNotification(issue) {
+    if (issue.code === 'unsupported') {
+        return `Поддерживаются только .xlsx, .xls и .csv: ${issue.file.name}`;
+    }
+    if (issue.code === 'duplicate') {
+        return `Файл уже добавлен: ${issue.file.name}`;
+    }
+    if (issue.code === 'occupied') {
+        return `Файл с таким типом уже загружен: ${issue.file.name}`;
+    }
+    if (issue.code === 'ambiguous') {
+        const types = issue.matches.map((type) => VK_FILE_TYPE_META[type].genitive);
+        return `Файл одновременно похож на выгрузку ${formatRussianList(types)}: ${issue.file.name}`;
+    }
+    return `Не удалось определить тип файла: ${issue.file.name}`;
+}
+
+function showVKAddResult(result) {
+    const addedTypes = Array.from(new Set(result.added.map(({ type }) => type)));
+
+    if (result.issues.length > 0) {
+        const issueText = result.issues.map(getIssueNotification).join(' · ');
+        const recognizedText = addedTypes.length > 0
+            ? ` Распознаны: ${formatRussianList(addedTypes.map((type) => VK_FILE_TYPE_META[type].name))}.`
+            : '';
+        showNotification(`⚠️ ${issueText}.${recognizedText}`, 'error');
+        return;
+    }
+
+    if (result.added.length === 1) {
+        const [{ file, type }] = result.added;
+        showNotification(`✅ Загружена выгрузка ${VK_FILE_TYPE_META[type].genitive}: ${file.name}`, 'success');
+        return;
+    }
+
+    if (addedTypes.length > 0) {
+        showNotification(`✅ Распознаны файлы: ${formatRussianList(addedTypes.map((type) => VK_FILE_TYPE_META[type].name))}`, 'success');
+    }
+}
+
+function handleVKFiles(files) {
+    const result = addVKFiles(files);
+    renderVKUploadState();
+    showVKAddResult(result);
+}
+
+export function removeVKFile(type, fileKey) {
+    const removed = removeStoredVKFile(type, fileKey);
+    if (removed) renderVKUploadState();
+    return removed;
+}
+
+export function resetVKUploadState() {
+    resetStoredVKUploadState();
+    const input = document.getElementById('vk-files');
+    if (input) input.value = '';
+    document.getElementById('vk-upload-dropzone')?.classList.remove('is-dragover');
+    renderVKUploadState();
+}
+
+function bindVKFilePicker() {
+    const input = document.getElementById('vk-files');
+    const dropzone = document.getElementById('vk-upload-dropzone');
+    const statusList = document.getElementById('vk-upload-status-list');
+    const unknownList = document.getElementById('vk-upload-unknown-list');
+    if (!input || !dropzone || !statusList || !unknownList) return;
+
+    dropzone.addEventListener('click', (event) => {
         if (event.target === input) return;
         input.click();
     });
+    dropzone.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        input.click();
+    });
+
+    input.addEventListener('change', (event) => {
+        handleVKFiles(event.target.files);
+        event.target.value = '';
+    });
 
     ['dragenter', 'dragover'].forEach((eventName) => {
-        wrapper.addEventListener(eventName, (event) => {
+        dropzone.addEventListener(eventName, (event) => {
             event.preventDefault();
             event.stopPropagation();
-            wrapper.classList.add('is-dragover');
+            dropzone.classList.add('is-dragover');
         });
     });
 
     ['dragleave', 'dragend'].forEach((eventName) => {
-        wrapper.addEventListener(eventName, () => {
-            wrapper.classList.remove('is-dragover');
+        dropzone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            dropzone.classList.remove('is-dragover');
         });
     });
 
-    wrapper.addEventListener('drop', (event) => {
+    dropzone.addEventListener('drop', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        wrapper.classList.remove('is-dragover');
-
-        const files = getDroppedFiles(event.dataTransfer, input.multiple);
-        if (files.length === 0) {
-            showNotification('📎 Поддерживаются только .xlsx, .xls и .csv', 'error');
-            return;
-        }
-
-        input._selectedFiles = mergeFiles(input._selectedFiles || [], files, input.multiple);
-        syncInputFiles(input, input._selectedFiles, true);
+        dropzone.classList.remove('is-dragover');
+        handleVKFiles(event.dataTransfer.files);
     });
 
-    input.addEventListener('change', (event) => {
-        const files = mergeFiles(input._selectedFiles || [], Array.from(event.target.files), input.multiple);
+    const handleRemoveClick = (event) => {
+        const button = event.target.closest('[data-vk-remove-type][data-vk-file-key]');
+        if (!button) return;
+        removeVKFile(button.dataset.vkRemoveType, button.dataset.vkFileKey);
+    };
+    statusList.addEventListener('click', handleRemoveClick);
+    unknownList.addEventListener('click', handleRemoveClick);
 
-        input._selectedFiles = files;
-        syncInputFiles(input, files);
-        renderFileNames(label, input._selectedFiles);
-        uploadItem?.classList.toggle('has-file', files.length > 0);
-    });
+    renderVKUploadState();
 }
 
 function bindOutputFormatToggle() {
@@ -408,21 +521,14 @@ export function getGoogleSheetInput() {
 
 export function showNotification(message, type = 'info') {
     const notification = document.getElementById('notification');
+    clearTimeout(notification._hideTimer);
     notification.textContent = message;
     notification.className = `notification ${type}`;
     notification.style.display = 'block';
 
-    setTimeout(() => {
+    notification._hideTimer = setTimeout(() => {
         notification.style.display = 'none';
     }, 5000);
-}
-
-export function getSelectedFiles(inputId) {
-    const input = document.getElementById(inputId);
-    if (!input) return [];
-
-    const selectedFiles = Array.from(input._selectedFiles || []);
-    return selectedFiles.length > 0 ? selectedFiles : Array.from(input.files || []);
 }
 
 export function bindUiEvents() {
@@ -438,9 +544,7 @@ export function bindUiEvents() {
 
     bindProjectAutocomplete();
     bindSpreadsheetAutocomplete();
-    bindFilePicker('vk-ads', 'ads-name');
-    bindFilePicker('vk-groups', 'groups-name');
-    bindFilePicker('vk-temp', 'temp-name');
+    bindVKFilePicker();
     bindOutputFormatToggle();
     setFormat('integer');
 }

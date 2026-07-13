@@ -1,7 +1,8 @@
 import { generateExcelReport } from './excelGenerator.js';
 import { downloadFile, readExcelFile } from './fileReader.js';
 import { processVKReport } from './reportProcessor.js';
-import { bindUiEvents, getSelectedFiles, getOutputFormat, getGoogleSheetInput, showNotification } from './ui.js';
+import { bindUiEvents, getOutputFormat, getGoogleSheetInput, showNotification } from './ui.js';
+import { getVKUploadedFiles } from './vkFileStore.js';
 import { extractSpreadsheetId } from './googleAuth.js';
 import { exportReportToGoogleSheet } from './sheetsReportBuilder.js';
 import { applyStoredSettings, saveCurrentSettings } from './userSettings.js';
@@ -48,14 +49,22 @@ function getExcelStyleSettings() {
     };
 }
 
-function validateForm(config, adsFile, groupsFile, outputFormat, spreadsheetId) {
+function validateForm(config, uploadedFiles, outputFormat, spreadsheetId) {
     if (!config.title) {
         showNotification('📌 Укажите название проекта', 'error');
         return false;
     }
 
-    if (!adsFile || !groupsFile) {
-        showNotification('📎 Загрузите файлы Объявления и Группы', 'error');
+    const missingFiles = [];
+    if (!uploadedFiles.adsFile) missingFiles.push('📎 Не загружена выгрузка объявлений');
+    if (!uploadedFiles.groupsFile) missingFiles.push('📎 Не загружена выгрузка групп');
+    if (uploadedFiles.leadFiles.length === 0) missingFiles.push('📎 Не загружена выгрузка лидов');
+    if (uploadedFiles.unresolvedFiles.length > 0) {
+        missingFiles.push('⚠️ Удалите файлы с неизвестным или неоднозначным типом');
+    }
+
+    if (missingFiles.length > 0) {
+        showNotification(missingFiles.join(' · '), 'error');
         return false;
     }
 
@@ -76,14 +85,13 @@ async function handleSubmit(event) {
 
     const submitButton = event.target.querySelector('button[type="submit"]');
     const config = getReportConfig();
-    const adsFile = getSelectedFiles('vk-ads')[0];
-    const groupsFile = getSelectedFiles('vk-groups')[0];
-    const tempFiles = getSelectedFiles('vk-temp');
+    const uploadedFiles = getVKUploadedFiles();
+    const { adsFile, groupsFile, leadFiles } = uploadedFiles;
     const outputFormat = getOutputFormat();
     const spreadsheetId = outputFormat === 'gsheet' ? extractSpreadsheetId(getGoogleSheetInput()) : '';
 
     try {
-        if (!validateForm(config, adsFile, groupsFile, outputFormat, spreadsheetId)) return;
+        if (!validateForm(config, uploadedFiles, outputFormat, spreadsheetId)) return;
 
         const excelStyleSettings = getExcelStyleSettings();
         // Значения уже прошли валидацию — сохраняем их как настройки по умолчанию
@@ -96,7 +104,7 @@ async function handleSubmit(event) {
         showNotification('📚 Чтение файлов...', 'info');
         const adsData = await readExcelFile(adsFile);
         const groupsData = await readExcelFile(groupsFile);
-        const tempData = await Promise.all(tempFiles.map(readExcelFile));
+        const tempData = await Promise.all(leadFiles.map(readExcelFile));
 
         showNotification('🧮 Обработка данных...', 'info');
         const reportData = processVKReport(adsData, groupsData, tempData, getTargetPhones(), config);

@@ -100,81 +100,91 @@
                     </div>
                 </div>
 
-                <div class="uploads-grid">
-                    <div class="upload-item">
-                        <div class="label-row">
-                            <label>📣 Выгрузка <b>Объявления</b></label>
-                            <button type="button" class="help-btn" data-hint-target="hint-ads" aria-label="Показать подсказку по объявлениям">?</button>
+                <section class="vk-upload-box" id="vk-upload-box" aria-labelledby="vk-upload-title">
+                    <div class="vk-upload-heading">
+                        <div>
+                            <h2 id="vk-upload-title">📂 Загрузите выгрузки VK Ads</h2>
+                            <p>Добавьте выгрузку объявлений, групп и лидов</p>
                         </div>
-                        <div class="file-input-wrapper">
-                            <span class="file-input-label">📎 Выбрать файл</span>
-                            <span class="file-input-name" id="ads-name">Файл не выбран</span>
-                            <input type="file" id="vk-ads" accept=".xlsx,.xls,.csv">
-                        </div>
-                        <div class="help-hint" id="hint-ads">
-                            <strong>Порядок столбцов (слева-направо):</strong>
-                            <div class="col-list">
-                                <span class="col-item">Название</span>
-                                <span class="col-item">Расход</span>
-                                <span class="col-item">Показы</span>
-                                <span class="col-item">Клики</span>
-                                <span class="col-item">CTR</span>
-                                <span class="col-item">Результат</span>
-                                <span class="col-item">ID объявления</span>
-                                <span class="col-item">ID группы</span>
-                            </div>
-                        </div>
+                        <div class="vk-upload-progress" id="vk-upload-progress" aria-live="polite">Загружено 0 из 3 типов выгрузок</div>
                     </div>
 
-                    <div class="upload-item">
-                        <div class="label-row">
-                            <label>👥 Выгрузка <b>Группы</b></label>
-                            <button type="button" class="help-btn" data-hint-target="hint-groups" aria-label="Показать подсказку по группам">?</button>
-                        </div>
-                        <div class="file-input-wrapper">
-                            <span class="file-input-label">📎 Выбрать файл</span>
-                            <span class="file-input-name" id="groups-name">Файл не выбран</span>
-                            <input type="file" id="vk-groups" accept=".xlsx,.xls,.csv">
-                        </div>
-                        <div class="help-hint" id="hint-groups">
-                            <strong>Порядок столбцов (слева-направо):</strong>
-                            <div class="col-list">
-                                <span class="col-item">Название группы</span>
-                                <span class="col-item">Расход</span>
-                                <span class="col-item">Показы</span>
-                                <span class="col-item">Клики</span>
-                                <span class="col-item">CTR</span>
-                                <span class="col-item">Результат</span>
-                                <span class="col-item">ID группы</span>
-                                <span class="col-item">ID кампании</span>
-                            </div>
-                        </div>
+                    <div
+                        class="vk-upload-dropzone"
+                        id="vk-upload-dropzone"
+                        role="button"
+                        tabindex="0"
+                        aria-controls="vk-files"
+                        aria-label="Выбрать или перетащить выгрузки VK Ads"
+                    >
+                        <input type="file" id="vk-files" accept=".xlsx,.xls,.csv" multiple>
+                        <span class="vk-upload-dropzone-icon" aria-hidden="true">📎</span>
+                        <strong>Выберите или перетащите файлы</strong>
+                        <span>Можно добавить объявления, группы и несколько файлов лидов одновременно</span>
+                        <small>Поддерживаются .xlsx, .xls и .csv</small>
                     </div>
 
-                    <div class="upload-item">
-                        <div class="label-row">
-                            <label>☎️ Выгрузка <b>Лиды</b></label>
-                            <button type="button" class="help-btn" data-hint-target="hint-leads" aria-label="Показать подсказку по лидам">?</button>
+                    <div class="vk-upload-status-list" id="vk-upload-status-list" aria-live="polite"></div>
+
+                    <div class="vk-upload-unknown" id="vk-upload-unknown" hidden>
+                        <strong>⚠️ Файлы, требующие внимания</strong>
+                        <div id="vk-upload-unknown-list"></div>
+                    </div>
+
+                    <p class="vk-upload-complete" id="vk-upload-complete" hidden>✅ Все необходимые выгрузки загружены</p>
+
+                    <div class="vk-upload-hints" aria-label="Подсказки по столбцам">
+                        <div class="vk-upload-hint">
+                            <button type="button" class="vk-upload-hint-button help-btn" data-hint-target="hint-ads" aria-label="Показать подсказку по объявлениям">Столбцы объявлений</button>
+                            <div class="help-hint" id="hint-ads">
+                                <strong>Порядок столбцов (слева-направо):</strong>
+                                <div class="col-list">
+                                    <span class="col-item">Название</span>
+                                    <span class="col-item">Расход</span>
+                                    <span class="col-item">Показы</span>
+                                    <span class="col-item">Клики</span>
+                                    <span class="col-item">CTR</span>
+                                    <span class="col-item">Результат</span>
+                                    <span class="col-item">ID объявления</span>
+                                    <span class="col-item">ID группы</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="file-input-wrapper">
-                            <span class="file-input-label">📎 Выбрать файлы</span>
-                            <span class="file-input-name" id="temp-name">Файл не выбран</span>
-                            <input type="file" id="vk-temp" accept=".xlsx,.xls,.csv" multiple>
+
+                        <div class="vk-upload-hint">
+                            <button type="button" class="vk-upload-hint-button help-btn" data-hint-target="hint-groups" aria-label="Показать подсказку по группам">Столбцы групп</button>
+                            <div class="help-hint" id="hint-groups">
+                                <strong>Порядок столбцов (слева-направо):</strong>
+                                <div class="col-list">
+                                    <span class="col-item">Название группы</span>
+                                    <span class="col-item">Расход</span>
+                                    <span class="col-item">Показы</span>
+                                    <span class="col-item">Клики</span>
+                                    <span class="col-item">CTR</span>
+                                    <span class="col-item">Результат</span>
+                                    <span class="col-item">ID группы</span>
+                                    <span class="col-item">ID кампании</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="help-hint" id="hint-leads">
-                            <strong>Порядок столбцов (слева-направо):</strong>
-                            <div class="col-list">
-                                <span class="col-item">ID Кампании</span>
-                                <span class="col-item">ID Группы</span>
-                                <span class="col-item">ID Объявления</span>
-                                <span class="col-item">Время лида</span>
-                                <span class="col-item">Имя</span>
-                                <span class="col-item">Телефон</span>
-                                <span class="col-item">Комментарий</span>
+
+                        <div class="vk-upload-hint">
+                            <button type="button" class="vk-upload-hint-button help-btn" data-hint-target="hint-leads" aria-label="Показать подсказку по лидам">Столбцы лидов</button>
+                            <div class="help-hint" id="hint-leads">
+                                <strong>Порядок столбцов (слева-направо):</strong>
+                                <div class="col-list">
+                                    <span class="col-item">ID Кампании</span>
+                                    <span class="col-item">ID Группы</span>
+                                    <span class="col-item">ID Объявления</span>
+                                    <span class="col-item">Время лида</span>
+                                    <span class="col-item">Имя</span>
+                                    <span class="col-item">Телефон</span>
+                                    <span class="col-item">Комментарий</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
                 <section class="excel-settings" aria-label="Настройки оформления Excel">
                     <div class="settings-title">

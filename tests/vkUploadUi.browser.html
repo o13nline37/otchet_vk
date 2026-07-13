@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK upload UI visual fixture</title>
+    <style>
+        html,
+        body,
+        iframe {
+            width: 100%;
+            min-height: 100%;
+            margin: 0;
+            border: 0;
+        }
+
+        iframe {
+            display: block;
+            height: 3600px;
+        }
+    </style>
+</head>
+<body>
+    <iframe id="app-frame" src="../index.html" title="VK upload UI"></iframe>
+    <script>
+        const frame = document.getElementById('app-frame');
+        frame.addEventListener('load', () => {
+            const frameDocument = frame.contentDocument;
+            frameDocument.getElementById('auth-gate').hidden = true;
+            frameDocument.querySelector('.app-shell').hidden = false;
+
+            const fixture = frameDocument.createElement('script');
+            fixture.type = 'module';
+            fixture.textContent = `
+                import { getVKUploadedFiles } from './js/vkFileStore.js';
+                import { initApp } from './js/app.js';
+
+                initApp();
+                const files = [
+                    new File(['ads'], 'banners_01.07-07.07.xlsx', { lastModified: 1 }),
+                    new File(['groups'], 'groups_01.07-07.07.xlsx', { lastModified: 1 }),
+                    new File(['leads-1'], 'leads_01.07.xlsx', { lastModified: 1 }),
+                    new File(['leads-2'], 'leads_02.07_очень-длинное-название-для-проверки-переноса.xlsx', { lastModified: 1 }),
+                    new File(['unknown'], 'groups_leads.xlsx', { lastModified: 1 }),
+                ];
+                const dropFiles = (selectedFiles) => {
+                    const transfer = new DataTransfer();
+                    selectedFiles.forEach((file) => transfer.items.add(file));
+                    document.getElementById('vk-upload-dropzone').dispatchEvent(new DragEvent('drop', {
+                        bubbles: true,
+                        cancelable: true,
+                        dataTransfer: transfer,
+                    }));
+                };
+
+                dropFiles(files);
+                document.querySelector('.vk-upload-status--leads .vk-upload-remove').click();
+                dropFiles([files[2]]);
+                document.body.dataset.removeCycle = getVKUploadedFiles().leadFiles.length === 2 ? 'passed' : 'failed';
+
+                document.querySelector('.vk-upload-status--groups .vk-upload-remove').click();
+                document.getElementById('vk-title').value = 'Проверка валидации';
+                document.getElementById('vk-form').requestSubmit();
+                document.body.dataset.validation = document.getElementById('notification').textContent.includes('Не загружена выгрузка групп')
+                    ? 'passed'
+                    : 'failed';
+                dropFiles([files[1]]);
+
+                document.getElementById('fmt-clear').click();
+                const cleared = getVKUploadedFiles();
+                document.body.dataset.clear = !cleared.adsFile
+                    && !cleared.groupsFile
+                    && cleared.leadFiles.length === 0
+                    && cleared.unresolvedFiles.length === 0
+                    ? 'passed'
+                    : 'failed';
+                dropFiles(files);
+                document.body.dataset.uploadFixture = 'ready';
+            `;
+            frameDocument.body.appendChild(fixture);
+
+            const checkFixture = setInterval(() => {
+                if (frameDocument.body.dataset.uploadFixture !== 'ready') return;
+                clearInterval(checkFixture);
+
+                const checks = [
+                    frameDocument.querySelectorAll('.vk-upload-status').length === 3,
+                    frameDocument.querySelectorAll('.vk-upload-status.is-loaded').length === 3,
+                    frameDocument.querySelectorAll('.vk-upload-files .vk-upload-file').length === 4,
+                    frameDocument.querySelectorAll('.vk-upload-file--unknown').length === 1,
+                    frameDocument.getElementById('vk-upload-progress').textContent.includes('3 из 3'),
+                    !frameDocument.getElementById('vk-upload-complete').hidden,
+                    frameDocument.body.dataset.removeCycle === 'passed',
+                    frameDocument.body.dataset.validation === 'passed',
+                    frameDocument.body.dataset.clear === 'passed',
+                    frameDocument.documentElement.scrollWidth <= frameDocument.documentElement.clientWidth,
+                ];
+                document.body.dataset.status = checks.every(Boolean) ? 'passed' : 'failed';
+            }, 50);
+        }, { once: true });
+    </script>
+</body>
+</html>

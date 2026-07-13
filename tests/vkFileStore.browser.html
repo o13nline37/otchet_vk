@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>VK file store browser tests</title>
+    <script src="../vendor/sheetjs-0.20.3/xlsx.full.min.js"></script>
+</head>
+<body>
+    <pre id="results">Tests are running…</pre>
+    <script type="module">
+        import {
+            addVKFiles,
+            detectVKFileType,
+            getVKFileKey,
+            getVKUploadedFiles,
+            removeVKFile,
+            resetVKUploadState,
+        } from '../js/vkFileStore.js';
+        import { readExcelFile } from '../js/fileReader.js';
+        import { processVKReport } from '../js/reportProcessor.js';
+
+        const output = document.getElementById('results');
+        const results = [];
+        const file = (name, size = 100, lastModified = 1) => ({ name, size, lastModified });
+        const assert = (condition, message) => {
+            if (!condition) throw new Error(message);
+        };
+        const test = (name, callback) => {
+            try {
+                resetVKUploadState();
+                callback();
+                results.push(`PASS ${name}`);
+            } catch (error) {
+                results.push(`FAIL ${name}: ${error.message}`);
+            }
+        };
+
+        test('classifies latin, cyrillic, case and paths', () => {
+            assert(detectVKFileType('C:\\exports\\BANNERS.XLSX') === 'ads', 'ads');
+            assert(detectVKFileType('/exports/ГРУППЫ.csv') === 'groups', 'groups');
+            assert(detectVKFileType('Лиды.07.07.XLS') === 'leads', 'leads');
+            assert(detectVKFileType('leads.xlsx') === 'leads', 'leads must not match ads');
+            assert(detectVKFileType('report.xlsx') === 'unknown', 'unknown');
+            assert(detectVKFileType('groups_leads.xlsx') === 'unknown', 'ambiguous');
+        });
+
+        test('adds all three types simultaneously', () => {
+            const result = addVKFiles([file('banners.xlsx'), file('groups.xlsx'), file('leads.xlsx')]);
+            const state = getVKUploadedFiles();
+            assert(result.added.length === 3 && result.issues.length === 0, 'add result');
+            assert(state.adsFile && state.groupsFile && state.leadFiles.length === 1, 'stored files');
+        });
+
+        test('adds the three types one by one', () => {
+            addVKFiles([file('groups.xlsx')]);
+            addVKFiles([file('leads.xlsx')]);
+            addVKFiles([file('banners.xlsx')]);
+            const state = getVKUploadedFiles();
+            assert(state.adsFile && state.groupsFile && state.leadFiles.length === 1, 'sequential files');
+        });
+
+        test('accepts arbitrary order and multiple lead files', () => {
+            addVKFiles([file('leads_02.xlsx', 102), file('groups.xlsx'), file('leads_01.xlsx', 101), file('ads.xlsx')]);
+            const state = getVKUploadedFiles();
+            assert(state.adsFile && state.groupsFile && state.leadFiles.length === 2, 'arbitrary order');
+        });
+
+        test('keeps xlsx, xls and csv support', () => {
+            const result = addVKFiles([file('banners.xlsx'), file('groups.xls'), file('leads.csv')]);
+            const unsupported = addVKFiles([file('leads.pdf', 200)]);
+            assert(result.added.length === 3 && result.issues.length === 0, 'accepted extensions');
+            assert(unsupported.issues[0]?.code === 'unsupported', 'unsupported extension');
+        });
+
+        test('rejects an exact duplicate', () => {
+            const duplicate = file('leads.xlsx');
+            addVKFiles([duplicate]);
+            const result = addVKFiles([duplicate]);
+            assert(result.issues[0]?.code === 'duplicate', 'duplicate issue');
+            assert(getVKUploadedFiles().leadFiles.length === 1, 'single stored copy');
+        });
+
+        test('does not silently replace ads or groups', () => {
+            addVKFiles([file('banners_new.xlsx')]);
+            const result = addVKFiles([file('ads_old.xlsx', 200)]);
+            assert(result.issues[0]?.code === 'occupied', 'occupied issue');
+            assert(getVKUploadedFiles().adsFile.name === 'banners_new.xlsx', 'original stays active');
+        });
+
+        test('stores unknown and ambiguous files as unresolved', () => {
+            const result = addVKFiles([file('report.xlsx'), file('groups_leads.xlsx', 200)]);
+            const state = getVKUploadedFiles();
+            assert(result.issues[0]?.code === 'unknown', 'unknown issue');
+            assert(result.issues[1]?.code === 'ambiguous', 'ambiguous issue');
+            assert(state.unresolvedFiles.length === 2, 'unresolved state');
+        });
+
+        test('removes one selected file', () => {
+            const first = file('leads_01.xlsx');
+            const second = file('leads_02.xlsx', 200);
+            addVKFiles([first, second]);
+            assert(removeVKFile('leads', getVKFileKey(first)), 'remove result');
+            assert(getVKUploadedFiles().leadFiles[0].name === second.name, 'remaining file');
+        });
+
+        test('resets every file category', () => {
+            addVKFiles([file('banners.xlsx'), file('groups.xlsx'), file('leads.xlsx'), file('report.xlsx')]);
+            resetVKUploadState();
+            const state = getVKUploadedFiles();
+            assert(!state.adsFile && !state.groupsFile, 'single-file slots reset');
+            assert(state.leadFiles.length === 0 && state.unresolvedFiles.length === 0, 'arrays reset');
+        });
+
+        try {
+            resetVKUploadState();
+            const createWorkbookFile = (name, rows, lastModified) => {
+                const workbook = XLSX.utils.book_new();
+                const sheet = XLSX.utils.aoa_to_sheet(rows);
+                XLSX.utils.book_append_sheet(workbook, sheet, 'Data');
+                const data = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                return new File([data], name, { lastModified });
+            };
+            const adsFile = createWorkbookFile('banners.xlsx', [
+                ['Название', 'Расход', 'Показы', 'Клики', 'CTR', 'Результат', 'ID объявления', 'ID группы'],
+                ['К1 Т1', 100, 1000, 10, 1, 2, 'ad-1', 'group-1'],
+            ], 11);
+            const groupsFile = createWorkbookFile('groups.xlsx', [
+                ['Название группы', 'Расход', 'Показы', 'Клики', 'CTR', 'Результат', 'ID группы', 'ID кампании'],
+                ['Таргетинг 1', 100, 1000, 10, 1, 2, 'group-1', 'campaign-1'],
+            ], 12);
+            const leadsFile = createWorkbookFile('leads.xlsx', [
+                ['ID Кампании', 'ID Группы', 'ID Объявления', 'Время лида', 'Имя', 'Телефон', 'Комментарий'],
+                ['campaign-1', 'group-1', 'ad-1', '2026-07-13', 'Тест', '+79017663835', ''],
+            ], 13);
+
+            addVKFiles([adsFile, groupsFile, leadsFile]);
+            const stored = getVKUploadedFiles();
+            const adsData = await readExcelFile(stored.adsFile);
+            const groupsData = await readExcelFile(stored.groupsFile);
+            const tempData = await Promise.all(stored.leadFiles.map(readExcelFile));
+            const report = processVKReport(adsData, groupsData, tempData, ['+79017663835'], {
+                title: 'Тест',
+                period: '',
+                vat: 1.22,
+                ak: 1,
+            });
+            assert(report.totalSpent === 122, 'report spent');
+            assert(report.totalCO === 1, 'report leads');
+            results.push('PASS reads stored workbooks and preserves processVKReport input format');
+        } catch (error) {
+            results.push(`FAIL reads stored workbooks and preserves processVKReport input format: ${error.message}`);
+        }
+
+        try {
+            await Promise.all([import('../js/ui.js'), import('../js/app.js')]);
+            results.push('PASS imports UI and report orchestration modules');
+        } catch (error) {
+            results.push(`FAIL imports UI and report orchestration modules: ${error.message}`);
+        }
+
+        const failures = results.filter((result) => result.startsWith('FAIL'));
+        document.body.dataset.status = failures.length === 0 ? 'passed' : 'failed';
+        output.textContent = results.join('\n');
+    </script>
+</body>
+</html>
